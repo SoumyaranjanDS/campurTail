@@ -1,0 +1,11 @@
+# General ignores
+node_modules/
+.env
+.DS_Store
+.vscode/
+.idea/
+*.log
+
+# Ignore common build folders just in case they are generated at the root
+build/
+dist/

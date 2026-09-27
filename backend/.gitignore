@@ -1,0 +1,23 @@
+# Node dependencies
+node_modules/
+npm-debug.log
+
+# Environment variables
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+
+# Uploads and generated files
+uploads/
+public/uploads/
+dist/
+build/
+
+# IDE and OS files
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.log
