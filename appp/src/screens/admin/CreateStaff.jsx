@@ -8,8 +8,8 @@ import { AuthContext } from '../../context/AuthContext';
 import { AlertContext } from '../../context/AlertContext';
 import { ArrowLeft, Check } from 'lucide-react-native';
 
-const API = 'http://10.0.4.85:5000/api/v1/admin';
-const BRANCHES = ['CSE', 'ECE', 'ME', 'Civil', 'EEE', 'IT', 'Admin', 'Maintenance'];
+const API = 'https://tails.inkedfact.online/api/v1/admin';
+const DEPARTMENTS = ["Infrastructure", "Academics", "Hostel", "Cleanliness", "Security", "Other"];
 
 const C = {
   background: '#FAFAF7',
@@ -28,18 +28,19 @@ const CreateStaff = ({ navigation, route }) => {
   const [name, setName] = useState('');
   const [regNo, setRegNo] = useState('');
   const [branch, setBranch] = useState('');
+  const [department, setDepartment] = useState('');
   const [loading, setLoading] = useState(false);
 
   const headers = { Authorization: `Bearer ${userToken}` };
 
   const handleCreate = async () => {
-    if (!name.trim() || !regNo.trim() || !branch) {
-      showAlert('Missing Fields', 'Please fill in all fields.');
+    if (!name.trim() || !regNo.trim() || !branch.trim() || !department) {
+      showAlert('Missing Fields', 'Please fill in all fields including department.');
       return;
     }
     setLoading(true);
     try {
-      await axios.post(`${API}/staff`, { name, registrationNumber: regNo, branch }, { headers });
+      await axios.post(`${API}/staff`, { name, registrationNumber: regNo, branch, department }, { headers });
       route.params?.onCreated?.();
       navigation.goBack();
     } catch (e) {
@@ -87,20 +88,28 @@ const CreateStaff = ({ navigation, route }) => {
             onChangeText={setRegNo}
             autoCapitalize="characters"
           />
+          <Text style={styles.label}>Branch / Title</Text>
+          <TextInput
+            style={[styles.input, { marginBottom: 0 }]}
+            placeholder="e.g. Maintenance"
+            placeholderTextColor={C.secondary}
+            value={branch}
+            onChangeText={setBranch}
+          />
         </View>
 
         <View style={styles.divider} />
 
-        <Text style={styles.sectionLabel}>DEPARTMENT</Text>
+        <Text style={styles.sectionLabel}>DEPARTMENT (CATEGORY)</Text>
         <View style={styles.branchGrid}>
-          {BRANCHES.map(b => (
+          {DEPARTMENTS.map(d => (
             <TouchableOpacity
-              key={b}
-              style={[styles.branchChip, branch === b && styles.branchChipActive]}
-              onPress={() => setBranch(b)}
+              key={d}
+              style={[styles.branchChip, department === d && styles.branchChipActive]}
+              onPress={() => setDepartment(d)}
               activeOpacity={0.7}
             >
-              <Text style={[styles.branchChipText, branch === b && styles.branchChipTextActive]}>{b}</Text>
+              <Text style={[styles.branchChipText, department === d && styles.branchChipTextActive]}>{d}</Text>
             </TouchableOpacity>
           ))}
         </View>

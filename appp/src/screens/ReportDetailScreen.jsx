@@ -10,6 +10,9 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  Linking,
+  Modal,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import axios from 'axios';
 import {
@@ -37,7 +40,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AuthContext } from '../context/AuthContext';
 import { AlertContext } from '../context/AlertContext';
 
-const API_URL = 'http://10.0.4.85:5000/api/v1/incidents';
+const API_URL = 'https://tails.inkedfact.online/api/v1/incidents';
 
 const C = {
   background: '#FAFAF7',
@@ -176,6 +179,7 @@ const ReportDetailScreen = ({ route, navigation }) => {
   const [note, setNote] = useState('');
   const [photo, setPhoto] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fullScreenImage, setFullScreenImage] = useState(null);
 
   const [commentText, setCommentText] = useState('');
   const [isPostingComment, setIsPostingComment] = useState(false);
@@ -285,6 +289,13 @@ const ReportDetailScreen = ({ route, navigation }) => {
     }
   };
 
+  const handleOpenMap = () => {
+    if (incident?.latitude && incident?.longitude) {
+      const url = `https://www.google.com/maps/dir/?api=1&destination=${incident.latitude},${incident.longitude}`;
+      Linking.openURL(url);
+    }
+  };
+
   if (loading) {
     return (
       <View style={styles.loadingScreen}>
@@ -352,6 +363,11 @@ const ReportDetailScreen = ({ route, navigation }) => {
           <View style={styles.locationRow}>
             <MapPin size={16} color={C.purple} strokeWidth={1.7} />
             <Text style={styles.locationText}>{incident.location}</Text>
+            {incident.latitude && incident.longitude && (
+              <TouchableOpacity style={styles.mapButton} onPress={handleOpenMap}>
+                <Text style={styles.mapButtonText}>Directions</Text>
+              </TouchableOpacity>
+            )}
           </View>
 
           <View style={styles.metadataRow}>
@@ -381,11 +397,13 @@ const ReportDetailScreen = ({ route, navigation }) => {
         {incident.photo ? (
           <View style={styles.photoSection}>
             <View style={styles.photoFrame}>
-              <Image
-                source={{ uri: incident.photo }}
-                style={styles.mainImage}
-                resizeMode="cover"
-              />
+              <TouchableOpacity activeOpacity={0.9} onPress={() => setFullScreenImage(incident.photo)}>
+                <Image
+                  source={{ uri: incident.photo }}
+                  style={styles.mainImage}
+                  resizeMode="cover"
+                />
+              </TouchableOpacity>
 
               <View pointerEvents="none" style={styles.photoTape} />
             </View>
@@ -523,11 +541,13 @@ const ReportDetailScreen = ({ route, navigation }) => {
 
                     {update.photo ? (
                       <View style={styles.updatePhotoSection}>
-                        <Image
-                          source={{ uri: update.photo }}
-                          style={styles.updatePhoto}
-                          resizeMode="cover"
-                        />
+                        <TouchableOpacity activeOpacity={0.9} onPress={() => setFullScreenImage(update.photo)}>
+                          <Image
+                            source={{ uri: update.photo }}
+                            style={styles.updatePhoto}
+                            resizeMode="cover"
+                          />
+                        </TouchableOpacity>
                         <Text style={styles.evidenceCaption}>
                           Photo attached to this update
                         </Text>
@@ -757,6 +777,34 @@ const ReportDetailScreen = ({ route, navigation }) => {
           )}
         </TouchableOpacity>
       </View>
+
+      <Modal visible={!!fullScreenImage} transparent={true} animationType="fade">
+        <TouchableWithoutFeedback onPress={() => setFullScreenImage(null)}>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={styles.modalImageContainer}>
+                <ScrollView 
+                  contentContainerStyle={styles.scrollImageContent}
+                  maximumZoomScale={3}
+                  minimumZoomScale={1}
+                  centerContent={true}
+                  showsHorizontalScrollIndicator={false}
+                  showsVerticalScrollIndicator={false}
+                >
+                  <TouchableWithoutFeedback onPress={() => setFullScreenImage(null)}>
+                    <Image
+                      source={{ uri: fullScreenImage }}
+                      style={styles.fullScreenImage}
+                      resizeMode="contain"
+                    />
+                  </TouchableWithoutFeedback>
+                </ScrollView>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
     </KeyboardAvoidingView>
   );
 };
@@ -857,6 +905,18 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     color: C.secondary,
     marginLeft: 7,
+  },
+  mapButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: C.lavender,
+    borderRadius: 12,
+    marginLeft: 10,
+  },
+  mapButtonText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: C.purple,
   },
   metadataRow: {
     flexDirection: 'row',
@@ -1342,6 +1402,26 @@ const styles = StyleSheet.create({
   },
   sendButtonDisabled: {
     backgroundColor: '#E9E5EE',
+  },
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalImageContainer: {
+    width: '100%',
+    height: '100%',
+  },
+  scrollImageContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fullScreenImage: {
+    width: '100%',
+    height: '100%',
   },
 });
 

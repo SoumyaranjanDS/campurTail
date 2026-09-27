@@ -29,7 +29,7 @@ import Svg, { Rect, Path, Circle, Ellipse } from 'react-native-svg';
 import Screen from '../components/Screen';
 import { AuthContext } from '../context/AuthContext';
 
-const API_URL = 'http://10.0.4.85:5000/api/v1/incidents';
+const API_URL = 'https://tails.inkedfact.online/api/v1/incidents';
 
 const COLORS = {
   background: '#FAFAF7',
@@ -501,7 +501,7 @@ const HomeScreen = ({ navigation }) => {
             <View style={styles.brandIcon}>
               <Activity size={21} color={COLORS.purple} />
             </View>
-            <Text style={styles.brandText}>campus pulse</Text>
+            <Text style={styles.brandText}>campus tails</Text>
           </View>
 
           <Text style={styles.headerLabel}>OUR CAMPUS</Text>
@@ -634,10 +634,13 @@ const HomeScreen = ({ navigation }) => {
             ListFooterComponent={
               sections.length > 0 ? (
                 <View style={styles.walkEnd}>
-                  <View style={styles.endDot} />
-                  <Text style={styles.endText}>
-                    You’re caught up with this walk.
-                  </Text>
+                  <View style={styles.walkEndTextRow}>
+                    <View style={styles.endDot} />
+                    <Text style={styles.endText}>
+                      You’re caught up with this walk.
+                    </Text>
+                  </View>
+                  <Image source={require('../../public/logo-bput.png')} style={styles.footerLogo} resizeMode="contain" />
                 </View>
               ) : null
             }
@@ -995,10 +998,22 @@ const styles = StyleSheet.create({
   },
 
   walkEnd: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'column',
     paddingTop: 8,
     paddingLeft: 12,
+  },
+  walkEndTextRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    // marginBottom: 20,
+  },
+  footerLogo: {
+    width: 160,
+    height: 160,
+    alignSelf: 'center',
+    opacity: 0.9,
+    // marginTop: 10,
+    // marginBottom: 30,
   },
   endDot: {
     width: 8,

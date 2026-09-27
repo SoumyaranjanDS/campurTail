@@ -34,7 +34,7 @@ import { AuthContext } from '../context/AuthContext';
 import { AlertContext } from '../context/AlertContext';
 import Screen from '../components/Screen';
 
-const API_URL = 'http://10.0.4.85:5000/api/v1/auth';
+const API_URL = 'https://tails.inkedfact.online/api/v1/auth';
 
 const C = {
   background: '#FAFAF7',

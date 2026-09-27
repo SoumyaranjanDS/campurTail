@@ -8,7 +8,7 @@ import { AuthContext } from '../../context/AuthContext';
 import { AlertContext } from '../../context/AlertContext';
 import { ArrowLeft, User, MapPin, Clock, CircleAlert, CheckCircle2 } from 'lucide-react-native';
 
-const API = 'http://10.0.4.85:5000/api/v1/admin';
+const API = 'https://tails.inkedfact.online/api/v1/admin';
 const STATUSES = ['Pending', 'In Progress', 'Resolved'];
 
 const C = {

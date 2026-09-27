@@ -7,7 +7,7 @@ import axios from 'axios';
 import { AuthContext } from '../../context/AuthContext';
 import { Search, MapPin, CheckCircle2, Circle, Clock, ArrowLeft } from 'lucide-react-native';
 
-const API = 'http://10.0.4.85:5000/api/v1/admin';
+const API = 'https://tails.inkedfact.online/api/v1/admin';
 const STATUSES = ['All', 'Pending', 'In Progress', 'Resolved'];
 
 const C = {

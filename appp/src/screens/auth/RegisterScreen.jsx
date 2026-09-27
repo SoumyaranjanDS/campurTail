@@ -11,7 +11,7 @@ import {
   AuthLink,
 } from '../../components/AuthUI';
 
-const API_URL = 'http://10.0.4.85:5000/api/v1/auth';
+const API_URL = 'https://tails.inkedfact.online/api/v1/auth';
 
 const RegisterScreen = ({ navigation }) => {
   const [name, setName] = useState('');

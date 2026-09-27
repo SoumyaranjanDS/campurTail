@@ -2,6 +2,7 @@ const Incident = require("../models/Incident");
 const IncidentUpdate = require("../models/IncidentUpdate");
 const Comment = require("../models/Comment");
 const User = require("../models/User");
+const admin = require("../config/firebase");
 
 // Create a new incident
 exports.createIncident = async (req, res) => {
@@ -71,8 +72,35 @@ exports.createIncident = async (req, res) => {
     // Populate the user info before returning
     await newIncident.populate([
       { path: "reportedBy", select: "name branch profilePhoto registrationNumber" },
-      { path: "assignedTo", select: "name registrationNumber department" }
+      { path: "assignedTo", select: "name registrationNumber department fcmToken" }
     ]);
+
+    // --- Firebase Push Notifications ---
+    try {
+      if (newIncident.assignedTo && newIncident.assignedTo.fcmToken) {
+        await admin.messaging().send({
+          token: newIncident.assignedTo.fcmToken,
+          notification: {
+            title: 'New Job Assigned',
+            body: `${newIncident.title} - ${newIncident.priority} Priority`
+          },
+          data: { incidentId: newIncident._id.toString() }
+        });
+      }
+
+      if (newIncident.priority === 'High' || newIncident.priority === 'Extreme') {
+        await admin.messaging().send({
+          topic: 'campus_alerts',
+          notification: {
+            title: `⚠️ ${newIncident.priority} Alert: ${newIncident.category}`,
+            body: newIncident.title
+          },
+          data: { incidentId: newIncident._id.toString() }
+        });
+      }
+    } catch (fcmError) {
+      console.error("FCM Error:", fcmError);
+    }
 
     res.status(201).json(newIncident);
   } catch (error) {

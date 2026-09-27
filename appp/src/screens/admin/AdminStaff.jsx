@@ -1,14 +1,14 @@
 import React, { useContext, useEffect, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
-  StatusBar, RefreshControl, Image
+  StatusBar, RefreshControl, Image, Modal
 } from 'react-native';
 import axios from 'axios';
 import { AuthContext } from '../../context/AuthContext';
 import { AlertContext } from '../../context/AlertContext';
 import { Plus, X, ArrowLeft } from 'lucide-react-native';
 
-const API = 'http://10.0.4.85:5000/api/v1/admin';
+const API = 'https://tails.inkedfact.online/api/v1/admin';
 
 const C = {
   background: '#FAFAF7',
@@ -48,24 +48,23 @@ const AdminStaff = ({ navigation }) => {
     return `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'Staff')}&background=random&color=fff`;
   };
 
-  const deleteStaff = async (id, name) => {
-    showAlert(
-      'Remove Staff?',
-      `Remove ${name} from staff?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Remove', style: 'destructive', onPress: async () => {
-            try {
-              await axios.delete(`${API}/staff/${id}`, { headers });
-              setStaff(prev => prev.filter(s => s._id !== id));
-            } catch (e) {
-              showAlert('Error', 'Failed to remove staff member.');
-            }
-          },
-        },
-      ]
-    );
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [staffToDelete, setStaffToDelete] = useState(null);
+
+  const confirmDelete = (id, name) => {
+    setStaffToDelete({ id, name });
+    setDeleteModalVisible(true);
+  };
+
+  const proceedDelete = async () => {
+    if (!staffToDelete) return;
+    setDeleteModalVisible(false);
+    try {
+      await axios.delete(`${API}/staff/${staffToDelete.id}`, { headers });
+      setStaff(prev => prev.filter(s => s._id !== staffToDelete.id));
+    } catch (e) {
+      showAlert('Error', 'Failed to remove staff member.');
+    }
   };
 
   const renderItem = ({ item }) => (
@@ -73,12 +72,12 @@ const AdminStaff = ({ navigation }) => {
       <Image source={{ uri: item.profilePhoto || getAvatar(item.name) }} style={styles.avatar} />
       <View style={styles.info}>
         <Text style={styles.name}>{item.name}</Text>
-        <Text style={styles.regNo}>{item.registrationNumber}</Text>
+        <Text style={styles.regNo}>{item.registrationNumber} • {item.branch}</Text>
         <View style={styles.branchWrap}>
-          <Text style={styles.branchText}>{item.branch}</Text>
+          <Text style={styles.branchText}>{item.department}</Text>
         </View>
       </View>
-      <TouchableOpacity style={styles.removeBtn} onPress={() => deleteStaff(item._id, item.name)}>
+      <TouchableOpacity style={styles.removeBtn} onPress={() => confirmDelete(item._id, item.name)}>
         <X size={20} color={C.text} />
       </TouchableOpacity>
     </View>
@@ -109,6 +108,32 @@ const AdminStaff = ({ navigation }) => {
         contentContainerStyle={styles.list}
         ListEmptyComponent={<Text style={styles.emptyText}>No staff members added.</Text>}
       />
+
+      {/* Delete Confirmation Modal */}
+      <Modal transparent visible={deleteModalVisible} animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalBox}>
+            <Text style={styles.modalTitle}>Remove Staff?</Text>
+            <Text style={styles.modalText}>
+              Are you sure you want to remove {staffToDelete?.name} from staff?
+            </Text>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalBtn, styles.modalCancel]}
+                onPress={() => setDeleteModalVisible(false)}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalBtn, styles.modalDelete]}
+                onPress={proceedDelete}
+              >
+                <Text style={styles.modalDeleteText}>Remove</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -148,6 +173,17 @@ const styles = StyleSheet.create({
   
   removeBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#F2F1F4', justifyContent: 'center', alignItems: 'center' },
   emptyText: { textAlign: 'center', marginTop: 40, color: C.secondary, fontSize: 14 },
+  
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' },
+  modalBox: { width: 300, backgroundColor: '#FFF', borderRadius: 16, padding: 24, alignItems: 'center' },
+  modalTitle: { fontSize: 18, fontWeight: '600', color: C.text, marginBottom: 8 },
+  modalText: { fontSize: 14, color: C.secondary, textAlign: 'center', marginBottom: 24 },
+  modalButtons: { flexDirection: 'row', width: '100%', gap: 12 },
+  modalBtn: { flex: 1, paddingVertical: 12, borderRadius: 8, alignItems: 'center' },
+  modalCancel: { backgroundColor: '#F2F1F4' },
+  modalCancelText: { color: C.text, fontWeight: '600', fontSize: 14 },
+  modalDelete: { backgroundColor: '#FF4B4B' },
+  modalDeleteText: { color: '#FFF', fontWeight: '600', fontSize: 14 },
 });
 
 export default AdminStaff;

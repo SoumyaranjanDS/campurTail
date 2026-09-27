@@ -21,4 +21,7 @@ router.patch(
   authController.updateProfile,
 );
 
+// Update FCM Token
+router.post("/fcm-token", authMiddleware, authController.updateFcmToken);
+
 module.exports = router;

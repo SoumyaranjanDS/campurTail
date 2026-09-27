@@ -9,3 +9,4 @@ node_modules/
 # Ignore common build folders just in case they are generated at the root
 build/
 dist/
+firebase-service-account.json

@@ -12,7 +12,7 @@ import {
 } from '../../components/AuthUI';
 
 // Keep your existing backend address.
-const API_URL = 'http://10.0.4.85:5000/api/v1/auth';
+const API_URL = 'https://tails.inkedfact.online/api/v1/auth';
 
 const LoginScreen = ({ navigation }) => {
   const [registrationNumber, setRegistrationNumber] = useState('');

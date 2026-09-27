@@ -40,7 +40,7 @@ import { AlertContext } from '../context/AlertContext';
 import FullScreenLoader from '../components/FullScreenLoader';
 import Screen from '../components/Screen';
 
-const API_URL = 'http://10.0.4.85:5000/api/v1/incidents';
+const API_URL = 'https://tails.inkedfact.online/api/v1/incidents';
 
 const CATEGORIES = [
   'Infrastructure',
@@ -390,6 +390,14 @@ const ExploreScreen = ({ navigation }) => {
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
         });
+        
+        // Auto-fill the location text input if it's empty
+        setLocation(prev => 
+          prev.trim() === '' 
+            ? `${position.coords.latitude.toFixed(6)}, ${position.coords.longitude.toFixed(6)}`
+            : prev
+        );
+        
         setIsLocating(false);
       },
       error => {

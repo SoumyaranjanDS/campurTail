@@ -27,6 +27,10 @@ const userSchema = new mongoose.Schema({
     type: String,
     enum: ["Infrastructure", "Academics", "Hostel", "Cleanliness", "Security", "Other"],
     required: function() { return this.role === 'staff'; }
+  },
+  fcmToken: {
+    type: String,
+    default: null,
   }
 }, { timestamps: true });
 

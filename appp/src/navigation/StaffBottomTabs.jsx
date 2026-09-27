@@ -1,7 +1,7 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LayoutDashboard, FileText } from 'lucide-react-native';
+import { LayoutDashboard, User } from 'lucide-react-native';
 import { View } from 'react-native';
 
 import StaffTaskBoard from '../screens/staff/StaffTaskBoard';
@@ -18,7 +18,7 @@ const StaffBottomTabs = () => {
         headerShown: false,
         tabBarShowLabel: false,
         tabBarIcon: ({ focused }) => {
-          let IconComponent = route.name === 'Tasks' ? LayoutDashboard : FileText;
+          let IconComponent = route.name === 'Tasks' ? LayoutDashboard : User;
           
           return (
             <View style={{
