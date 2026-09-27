@@ -61,7 +61,7 @@ const SplashScreen = () => {
             <View pointerEvents="none" style={styles.smallDot} />
           </View>
 
-          <Text style={styles.title}>campus pulse</Text>
+          <Text style={styles.title}>campus tails</Text>
 
           <Text style={styles.subtitle}>Your campus. Your voice.</Text>
 
