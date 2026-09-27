@@ -1,6 +1,7 @@
 import React, { createContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import messaging from '@react-native-firebase/messaging';
+import notifee, { AndroidImportance } from '@notifee/react-native';
 import axios from 'axios';
 import { Alert } from 'react-native';
 
@@ -15,8 +16,6 @@ export const AuthProvider = ({ children }) => {
 
   const setupFCM = async (token, isLogin = false) => {
     try {
-      // Lazy require so Metro doesn't crash if native module isn't compiled yet
-      const messaging = require('@react-native-firebase/messaging').default;
       const authStatus = await messaging().requestPermission();
       const enabled =
         authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
@@ -76,6 +75,49 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     checkToken();
+
+    let unsubscribe;
+    try {
+      if (messaging && typeof messaging === 'function') {
+        const messagingInstance = messaging();
+        if (messagingInstance && typeof messagingInstance.onMessage === 'function') {
+          unsubscribe = messagingInstance.onMessage(async remoteMessage => {
+            try {
+              if (notifee && notifee.requestPermission) {
+                await notifee.requestPermission();
+                
+                const channelId = await notifee.createChannel({
+                  id: 'default',
+                  name: 'Campus Tails',
+                  importance: AndroidImportance.HIGH,
+                });
+
+                await notifee.displayNotification({
+                  title: remoteMessage.notification?.title || 'Campus Tails',
+                  body: remoteMessage.notification?.body || '',
+                  android: {
+                    channelId,
+                    smallIcon: 'ic_launcher',
+                    color: '#6456B8',
+                    pressAction: { id: 'default' },
+                  },
+                });
+              }
+            } catch (notifeeErr) {
+              console.log('Notifee Error:', notifeeErr);
+            }
+          });
+        }
+      }
+    } catch (e) {
+      console.log('Firebase onMessage Setup Error:', e);
+    }
+
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
   }, []);
 
   return (
