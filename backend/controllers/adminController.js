@@ -1,3 +1,5 @@
+const admin = require('firebase-admin');
+const Notification = require('../models/Notification');
 const User = require('../models/User');
 const Incident = require('../models/Incident');
 
@@ -75,7 +77,43 @@ exports.updateReportStatus = async (req, res) => {
     if (!incident) return res.status(404).json({ message: 'Report not found.' });
 
     if (status) incident.status = status;
-    if (assignedTo) incident.assignedTo = assignedTo;
+    if (assignedTo && incident.assignedTo?.toString() !== assignedTo.toString()) {
+      incident.assignedTo = assignedTo;
+      
+      const staffUser = await User.findById(assignedTo);
+      if (staffUser) {
+        if (staffUser.fcmToken) {
+          try {
+            await admin.messaging().send({
+              token: staffUser.fcmToken,
+              notification: {
+                title: 'New Job Assigned',
+                body: `${incident.title} - ${incident.priority} Priority`
+              },
+              data: { incidentId: incident._id.toString() }
+            });
+          } catch (err) { console.error('FCM err:', err); }
+        }
+        
+        await Notification.create({
+          userId: staffUser._id,
+          incidentId: incident._id,
+          type: 'assigned',
+          title: 'New Job Assigned',
+          message: `${incident.title} - ${incident.priority} Priority`,
+          isRead: false
+        });
+
+        if (global.io) {
+          global.io.to(staffUser._id.toString()).emit('notification', {
+            incidentId: incident._id,
+            type: 'assigned',
+            title: 'New Job Assigned',
+            message: `${incident.title} - ${incident.priority} Priority`
+          });
+        }
+      }
+    }
 
     await incident.save();
     const updated = await Incident.findById(incident._id)

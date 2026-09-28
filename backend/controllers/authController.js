@@ -83,6 +83,8 @@ exports.updateProfile = async (req, res) => {
 
 exports.updateFcmToken = async (req, res) => {
   const { fcmToken, isLogin } = req.body;
+  console.log(`[FCM-TOKEN] Received token. isLogin=${isLogin}, token=${fcmToken ? 'Exists' : 'Empty'}`);
+  
   try {
     const user = await User.findById(req.user.userId);
     if (!user) {
@@ -92,6 +94,7 @@ exports.updateFcmToken = async (req, res) => {
     await user.save();
 
     if (isLogin && fcmToken) {
+      console.log(`[FCM-TOKEN] Sending welcome notification to user ${user.name}...`);
       try {
         await admin.messaging().send({
           token: fcmToken,
@@ -100,8 +103,9 @@ exports.updateFcmToken = async (req, res) => {
             body: "You're connected to Campus Tails. Let's make our campus better together.",
           },
         });
+        console.log(`[FCM-TOKEN] Welcome notification sent successfully!`);
       } catch (fcmError) {
-        console.error("Error sending welcome notification:", fcmError);
+        console.error("[FCM-TOKEN] Error sending welcome notification:", fcmError);
       }
     }
 
