@@ -7,6 +7,8 @@ import LoginScreen from '../screens/auth/LoginScreen';
 import RegisterScreen from '../screens/auth/RegisterScreen';
 import BottomTabs from './BottomTabs';
 import ReportDetailScreen from '../screens/ReportDetailScreen';
+import IssueChatScreen from '../screens/IssueChatScreen';
+import NotificationsScreen from '../screens/NotificationsScreen';
 
 import AdminBottomTabs from './AdminBottomTabs';
 import StaffBottomTabs from './StaffBottomTabs';
@@ -42,6 +44,8 @@ const AppNavigator = () => {
         <Stack.Screen name="StaffManagement" component={StaffManagement} />
         <Stack.Screen name="AdminProfile" component={AdminProfile} />
         <Stack.Screen name="ReportDetail" component={ReportDetailScreen} />
+        <Stack.Screen name="IssueChat" component={IssueChatScreen} />
+        <Stack.Screen name="Notifications" component={NotificationsScreen} />
       </Stack.Navigator>
     );
   }
@@ -51,6 +55,8 @@ const AppNavigator = () => {
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         <Stack.Screen name="StaffMain" component={StaffBottomTabs} />
         <Stack.Screen name="ReportDetail" component={ReportDetailScreen} />
+        <Stack.Screen name="IssueChat" component={IssueChatScreen} />
+        <Stack.Screen name="Notifications" component={NotificationsScreen} />
       </Stack.Navigator>
     );
   }
@@ -62,6 +68,8 @@ const AppNavigator = () => {
         <>
           <Stack.Screen name="MainApp" component={BottomTabs} />
           <Stack.Screen name="ReportDetail" component={ReportDetailScreen} />
+          <Stack.Screen name="IssueChat" component={IssueChatScreen} />
+          <Stack.Screen name="Notifications" component={NotificationsScreen} />
         </>
       ) : (
         <>

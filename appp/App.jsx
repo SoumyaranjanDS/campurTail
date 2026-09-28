@@ -8,6 +8,8 @@ import { AlertProvider } from './src/context/AlertContext';
 import AppNavigator from './src/navigation/AppNavigator';
 import SplashScreen from './src/screens/SplashScreen';
 
+import { navigationRef } from './src/navigation/NavigationService';
+
 export default function App() {
   const [isSplashVisible, setIsSplashVisible] = useState(true);
 
@@ -31,7 +33,7 @@ export default function App() {
         <SplashScreen />
       ) : (
         <AuthProvider>
-          <NavigationContainer>
+          <NavigationContainer ref={navigationRef}>
             <AppNavigator />
           </NavigationContainer>
         </AuthProvider>
