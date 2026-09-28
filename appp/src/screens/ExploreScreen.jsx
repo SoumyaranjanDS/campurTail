@@ -1,4 +1,5 @@
 import React, { useState, useContext, useEffect } from 'react';
+import { API_URL as BASE_API_URL } from '../config';
 import {
   View,
   Text,
@@ -40,7 +41,7 @@ import { AlertContext } from '../context/AlertContext';
 import FullScreenLoader from '../components/FullScreenLoader';
 import Screen from '../components/Screen';
 
-const API_URL = 'https://tails.inkedfact.online/api/v1/incidents';
+const API_URL = `${BASE_API_URL}/incidents`;
 
 const CATEGORIES = [
   'Infrastructure',
@@ -183,6 +184,8 @@ const ExploreScreen = ({ navigation }) => {
   const [category, setCategory] = useState(CATEGORIES[0]);
   const [priority, setPriority] = useState('Medium');
   const [location, setLocation] = useState('');
+  const [landmarkText, setLandmarkText] = useState('');
+  const [landmarkImages, setLandmarkImages] = useState([]);
   const [gpsLocation, setGpsLocation] = useState(null);
   const [photo, setPhoto] = useState(null);
 
@@ -190,6 +193,8 @@ const ExploreScreen = ({ navigation }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isDraftLoaded, setIsDraftLoaded] = useState(false);
+  const [nearbyIssues, setNearbyIssues] = useState([]);
+  const [isCheckingNearby, setIsCheckingNearby] = useState(false);
 
   // Load local draft.
   useEffect(() => {
@@ -245,6 +250,30 @@ const ExploreScreen = ({ navigation }) => {
     return () => clearTimeout(timeoutId);
   }, [title, description, category, priority, location, photo, isDraftLoaded]);
 
+  // Debounced Nearby Check
+  useEffect(() => {
+    if (!gpsLocation) {
+      setNearbyIssues([]);
+      return;
+    }
+    
+    setIsCheckingNearby(true);
+    const checkTimer = setTimeout(async () => {
+      try {
+        const res = await axios.get(`${API_URL}/nearby?longitude=${gpsLocation.longitude}&latitude=${gpsLocation.latitude}`, {
+          headers: { Authorization: `Bearer ${userToken}` }
+        });
+        setNearbyIssues(res.data);
+      } catch (err) {
+        console.error('Failed to check nearby issues:', err);
+      } finally {
+        setIsCheckingNearby(false);
+      }
+    }, 800); // 800ms debounce
+
+    return () => clearTimeout(checkTimer);
+  }, [gpsLocation, userToken]);
+
   const handleClearDraft = async () => {
     setTitle('');
     setDescription('');
@@ -297,7 +326,47 @@ const ExploreScreen = ({ navigation }) => {
     }
   };
 
-  const handlePickImage = async source => {
+  const pickLandmarkImage = async (source) => {
+    if (landmarkImages.length >= 2) {
+      showAlert('Limit Reached', 'You can only add up to 2 landmark images.');
+      return;
+    }
+
+    if (source === 'camera' && Platform.OS === 'android') {
+      try {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.CAMERA,
+          {
+            title: 'Camera Permission',
+            message: 'Campus Tails needs camera access for landmark photos.',
+            buttonNeutral: 'Ask Me Later',
+            buttonNegative: 'Cancel',
+            buttonPositive: 'OK',
+          },
+        );
+        if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+          showAlert('Permission Denied', 'Camera permission is required.');
+          return;
+        }
+      } catch (err) {
+        console.warn(err);
+        return;
+      }
+    }
+
+    const options = { mediaType: 'photo', quality: 0.8 };
+    const picker = source === 'camera' ? launchCamera : launchImageLibrary;
+    const result = await picker(options);
+    if (result.assets && result.assets.length > 0) {
+      setLandmarkImages(prev => [...prev, result.assets[0]]);
+    }
+  };
+
+  const removeLandmarkImage = index => {
+    setLandmarkImages(prev => prev.filter((_, i) => i !== index));
+  };
+
+    const handlePickImage = async source => {
     if (source === 'camera' && Platform.OS === 'android') {
       try {
         const granted = await PermissionsAndroid.request(
@@ -429,6 +498,16 @@ const ExploreScreen = ({ navigation }) => {
       formData.append('category', category);
       formData.append('location', location);
       formData.append('priority', priority);
+
+      formData.append('landmarkText', landmarkText);
+      landmarkImages.forEach((img, index) => {
+        formData.append('landmarkImages', {
+          uri: img.uri,
+          type: img.type,
+          name: img.fileName || `landmark_${index}.jpg`,
+        });
+      });
+
 
       if (gpsLocation) {
         formData.append('latitude', gpsLocation.latitude.toString());
@@ -593,7 +672,10 @@ const ExploreScreen = ({ navigation }) => {
               </Text>
             </View>
 
+            
+
             <View style={styles.divider} />
+
 
             {/* 02 — Describe */}
             <StepHeading
@@ -774,10 +856,109 @@ const ExploreScreen = ({ navigation }) => {
               </View>
             ) : null}
 
+            {isCheckingNearby ? (
+              <ActivityIndicator color={C.purple} style={{ marginTop: 10 }} />
+            ) : nearbyIssues.length > 0 ? (
+              <View style={styles.nearbySection}>
+                <Text style={styles.nearbyHeading}>An active issue is nearby</Text>
+                <Text style={styles.nearbySubheading}>
+                  {nearbyIssues[0].title} · {nearbyIssues[0].priority} priority
+                </Text>
+                <Text style={styles.nearbyInfo}>
+                  Updated {new Date(nearbyIssues[0].lastActivityAt || nearbyIssues[0].createdAt).toLocaleDateString()}
+                </Text>
+                <TouchableOpacity
+                  style={styles.nearbyButton}
+                  onPress={() => navigation.navigate('ReportDetail', { incidentId: nearbyIssues[0]._id })}
+                >
+                  <Text style={styles.nearbyButtonText}>View issue</Text>
+                </TouchableOpacity>
+                <Text style={styles.nearbyOr}>or continue with your report.</Text>
+              </View>
+            ) : null}
+
             <Text style={styles.locationHelp}>
               GPS adds coordinates. Please still enter the building or room
               above.
             </Text>
+
+            {/* ── Landmark Details ── */}
+            <View style={{ marginTop: 22 }}>
+              <Text style={styles.label}>
+                Landmark Description
+                <Text style={styles.optionalLabel}> (Optional)</Text>
+              </Text>
+              <TextInput
+                style={[styles.input, styles.textArea, { minHeight: 70, marginTop: 6 }]}
+                placeholder="E.g. Near the main gate, opposite the canteen…"
+                placeholderTextColor="#8B8794"
+                value={landmarkText}
+                onChangeText={setLandmarkText}
+                multiline
+                numberOfLines={3}
+                textAlignVertical="top"
+              />
+            </View>
+
+            <View style={{ marginTop: 10, marginBottom: 4 }}>
+              <Text style={styles.label}>
+                Landmark Photos
+                <Text style={styles.optionalLabel}> (Up to 2)</Text>
+              </Text>
+              <View style={{ flexDirection: 'row', gap: 12, marginTop: 8 }}>
+                {landmarkImages.map((img, idx) => (
+                  <View key={idx} style={{ position: 'relative' }}>
+                    <Image
+                      source={{ uri: img.uri }}
+                      style={{ width: 90, height: 90, borderRadius: 12 }}
+                    />
+                    <TouchableOpacity
+                      onPress={() => removeLandmarkImage(idx)}
+                      style={{
+                        position: 'absolute', top: -6, right: -6,
+                        backgroundColor: '#A05C69', borderRadius: 12,
+                        width: 24, height: 24,
+                        alignItems: 'center', justifyContent: 'center', zIndex: 10,
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={{ color: 'white', fontSize: 11, fontWeight: 'bold' }}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+                {landmarkImages.length < 2 && (
+                  <View style={{ gap: 8 }}>
+                    <TouchableOpacity
+                      onPress={() => pickLandmarkImage('camera')}
+                      activeOpacity={0.7}
+                      style={{
+                        width: 90, height: 42, borderRadius: 10,
+                        backgroundColor: '#6456B8',
+                        alignItems: 'center', justifyContent: 'center',
+                        flexDirection: 'row', gap: 6,
+                      }}
+                    >
+                      <Camera size={15} color="#fff" />
+                      <Text style={{ color: '#fff', fontSize: 10, fontWeight: '600' }}>Camera</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => pickLandmarkImage('gallery')}
+                      activeOpacity={0.7}
+                      style={{
+                        width: 90, height: 42, borderRadius: 10,
+                        backgroundColor: '#E7F0E5',
+                        alignItems: 'center', justifyContent: 'center',
+                        flexDirection: 'row', gap: 6,
+                        borderWidth: 1.5, borderColor: '#507B60',
+                      }}
+                    >
+                      <ImageIcon size={15} color="#507B60" />
+                      <Text style={{ color: '#507B60', fontSize: 10, fontWeight: '600' }}>Gallery</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            </View>
 
             <View style={styles.divider} />
 
@@ -1289,6 +1470,48 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 21,
   },
+  nearbySection: {
+    marginTop: 15,
+    padding: 16,
+    backgroundColor: '#F5EBDD',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E6D3B8',
+  },
+  nearbyHeading: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#976D30',
+  },
+  nearbySubheading: {
+    fontSize: 13,
+    color: '#272D3B',
+    marginTop: 4,
+  },
+  nearbyInfo: {
+    fontSize: 11,
+    color: '#717583',
+    marginTop: 2,
+  },
+  nearbyButton: {
+    marginTop: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#976D30',
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+  },
+  nearbyButtonText: {
+    color: '#FFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  nearbyOr: {
+    fontSize: 11,
+    color: '#717583',
+    marginTop: 10,
+    fontStyle: 'italic',
+  }
 });
 
 export default ExploreScreen;
