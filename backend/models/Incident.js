@@ -33,6 +33,8 @@ const IncidentSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
+    landmarkImages: [{ type: String }],
+    landmarkText: { type: String, default: '' },
     status: {
       type: String,
       enum: ["Pending", "In Progress", "Resolved"],
@@ -54,8 +56,25 @@ const IncidentSchema = new mongoose.Schema(
       ref: 'User',
       default: null,
     },
+    geoLocation: {
+      type: {
+        type: String,
+        enum: ['Point'],
+        required: false
+      },
+      coordinates: {
+        type: [Number], // [longitude, latitude]
+        required: false
+      }
+    },
+    lastActivityAt: {
+      type: Date,
+      default: Date.now
+    }
   },
   { timestamps: true }
 );
+
+IncidentSchema.index({ geoLocation: "2dsphere" });
 
 module.exports = mongoose.model("Incident", IncidentSchema);
