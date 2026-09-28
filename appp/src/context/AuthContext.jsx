@@ -1,11 +1,12 @@
 import React, { createContext, useState, useEffect } from 'react';
+import { API_URL } from '../config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import messaging from '@react-native-firebase/messaging';
-import notifee, { AndroidImportance } from '@notifee/react-native';
+import notifee, { AndroidImportance, EventType } from '@notifee/react-native';
+import { handleNotificationRoute } from '../navigation/NavigationService';
 import axios from 'axios';
 import { Alert } from 'react-native';
 
-const API = 'https://tails.inkedfact.online/api/v1';
+const API = API_URL;
 
 export const AuthContext = createContext();
 
@@ -16,26 +17,65 @@ export const AuthProvider = ({ children }) => {
 
   const setupFCM = async (token, isLogin = false) => {
     try {
-      const authStatus = await messaging().requestPermission();
-      const enabled =
-        authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
-        authStatus === messaging.AuthorizationStatus.PROVISIONAL;
+      const { getMessaging, requestPermission, getToken, subscribeToTopic } = require('@react-native-firebase/messaging');
+      const messagingInstance = getMessaging();
+      
+      const authStatus = await requestPermission(messagingInstance);
+      // AUTHORIZED is 1, PROVISIONAL is 2 in AuthorizationStatus
+      const enabled = authStatus === 1 || authStatus === 2;
 
-      if (enabled) {
-        const fcmToken = await messaging().getToken();
-        if (fcmToken) {
-          // Send to backend
-          await axios.post(
-            `${API}/auth/fcm-token`,
-            { fcmToken, isLogin },
-            { headers: { Authorization: `Bearer ${token}` } },
-          );
-        }
-        // Subscribe to campus_alerts topic
-        await messaging().subscribeToTopic('campus_alerts');
+      if (!enabled) {
+        console.log('FCM Permission not granted');
+        return;
       }
+
+      const fcmToken = await getToken(messagingInstance);
+      if (!fcmToken) {
+        console.log('Failed to generate FCM token');
+        return;
+      }
+
+      // Send to backend
+      try {
+        await axios.post(
+          `${API}/auth/fcm-token`,
+          { fcmToken, isLogin },
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+      } catch (postError) {
+        console.log(`Failed to send to backend: ${postError.message}`);
+      }
+
+      // Subscribe to campus_alerts topic
+      await subscribeToTopic(messagingInstance, 'campus_alerts');
+      
+    
+      // Listen for foreground clicks (Notifee)
+      const unsubscribeNotifee = notifee.onForegroundEvent(({ type, detail }) => {
+        if (type === EventType.PRESS && detail.notification && detail.notification.data) {
+          handleNotificationRoute(detail.notification.data);
+        }
+      });
+
+      // Listen for background clicks (FCM)
+      const unsubscribeOnOpen = messagingInstance.onNotificationOpenedApp(remoteMessage => {
+        if (remoteMessage && remoteMessage.data) {
+          handleNotificationRoute(remoteMessage.data);
+        }
+      });
+
+      // Check if app was opened from a closed state via FCM
+      messagingInstance.getInitialNotification().then(remoteMessage => {
+        if (remoteMessage && remoteMessage.data) {
+          setTimeout(() => {
+            handleNotificationRoute(remoteMessage.data);
+          }, 1500); // Small delay to let navigation tree mount
+        }
+      });
+
     } catch (e) {
       console.log('Error setting up FCM:', e);
+      Alert.alert('FCM Error', String(e));
     }
   };
 
@@ -78,37 +118,35 @@ export const AuthProvider = ({ children }) => {
 
     let unsubscribe;
     try {
-      if (messaging && typeof messaging === 'function') {
-        const messagingInstance = messaging();
-        if (messagingInstance && typeof messagingInstance.onMessage === 'function') {
-          unsubscribe = messagingInstance.onMessage(async remoteMessage => {
-            try {
-              if (notifee && notifee.requestPermission) {
-                await notifee.requestPermission();
-                
-                const channelId = await notifee.createChannel({
-                  id: 'default',
-                  name: 'Campus Tails',
-                  importance: AndroidImportance.HIGH,
-                });
+      const { getMessaging, onMessage } = require('@react-native-firebase/messaging');
+      const messagingInstance = getMessaging();
+      
+      unsubscribe = onMessage(messagingInstance, async remoteMessage => {
+        try {
+          if (notifee && notifee.requestPermission) {
+            await notifee.requestPermission();
+            
+            const channelId = await notifee.createChannel({
+              id: 'default',
+              name: 'Campus Tails',
+              importance: AndroidImportance.HIGH,
+            });
 
-                await notifee.displayNotification({
-                  title: remoteMessage.notification?.title || 'Campus Tails',
-                  body: remoteMessage.notification?.body || '',
-                  android: {
-                    channelId,
-                    smallIcon: 'ic_launcher',
-                    color: '#6456B8',
-                    pressAction: { id: 'default' },
-                  },
-                });
-              }
-            } catch (notifeeErr) {
-              console.log('Notifee Error:', notifeeErr);
-            }
-          });
+            await notifee.displayNotification({
+              title: remoteMessage.notification?.title || 'Campus Tails',
+              body: remoteMessage.notification?.body || '',
+              android: {
+                channelId,
+                smallIcon: 'ic_launcher',
+                color: '#6456B8',
+                pressAction: { id: 'default' },
+              },
+            });
+          }
+        } catch (notifeeErr) {
+          console.log('Notifee Error:', notifeeErr);
         }
-      }
+      });
     } catch (e) {
       console.log('Firebase onMessage Setup Error:', e);
     }
