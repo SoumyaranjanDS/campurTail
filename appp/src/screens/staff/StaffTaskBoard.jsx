@@ -5,6 +5,7 @@ import React, {
   useCallback,
   useRef,
 } from 'react';
+import { API_URL } from '../../config';
 import {
   View,
   Text,
@@ -20,8 +21,10 @@ import {
   ScrollView,
   useWindowDimensions,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import axios from 'axios';
+import io from 'socket.io-client';
 import {
   Briefcase,
   MapPin,
@@ -29,7 +32,7 @@ import {
   Clock,
   PlayCircle,
   ArrowUpRight,
-  ArrowRight,
+  ArrowRight, Bell,
 } from 'lucide-react-native';
 import Svg, {
   Defs,
@@ -42,7 +45,7 @@ import Svg, {
 
 import { AuthContext } from '../../context/AuthContext';
 
-const API = 'https://tails.inkedfact.online/api/v1/staff';
+const API = `${API_URL}/staff`;
 
 const STATUSES = ['Pending', 'In Progress', 'Resolved'];
 
@@ -201,6 +204,36 @@ const StaffTaskBoard = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState('Pending');
+  const [unreadCount, setUnreadCount] = useState(0);
+  useEffect(() => {
+    let socket;
+    if (userToken) {
+      const serverUrl = API_URL.replace('/api/v1', '');
+      socket = io(serverUrl, { query: { token: userToken } });
+      socket.on('notification', () => {
+        setUnreadCount(prev => prev + 1);
+      });
+    }
+    return () => {
+      if (socket) socket.disconnect();
+    };
+  }, [userToken]);
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      const fetchUnread = async () => {
+        try {
+          const res = await axios.get(`${API_URL}/notifications`, {
+            headers: { Authorization: `Bearer ${userToken}` }
+          });
+          if (active) setUnreadCount(res.data.filter(n => !n.isRead).length);
+        } catch (e) { console.error(e); }
+      };
+      if (userToken) fetchUnread();
+      return () => { active = false; };
+    }, [userToken])
+  );
 
   const scrollRef = useRef(null);
   const { width: windowWidth } = useWindowDimensions();
@@ -225,7 +258,11 @@ const StaffTaskBoard = ({ navigation }) => {
         headers: { Authorization: `Bearer ${userToken}` },
       });
 
-      setReports(data);
+      if (Array.isArray(data)) {
+        setReports(data);
+      } else {
+        setReports([]);
+      }
     } catch (e) {
       console.error(e);
     } finally {
@@ -430,8 +467,23 @@ const StaffTaskBoard = ({ navigation }) => {
           </Text>
         </View>
 
-        <TouchableOpacity
-          style={styles.avatarButton}
+<View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <TouchableOpacity
+            style={styles.bellButton}
+            onPress={() => navigation.navigate('Notifications')}
+            activeOpacity={0.7}
+          >
+            <Bell size={22} color={C.text} strokeWidth={1.7} />
+            {unreadCount > 0 && (
+              <View style={styles.notificationBadge}>
+                <Text style={styles.notificationBadgeText}>
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.avatarButton, { marginLeft: 15 }]}
           onPress={() => navigation.navigate('Profile')}
           activeOpacity={0.75}
           accessibilityRole="button"
@@ -450,6 +502,7 @@ const StaffTaskBoard = ({ navigation }) => {
             </View>
           )}
         </TouchableOpacity>
+        </View>
       </View>
 
       {/* Status navigation */}
@@ -665,6 +718,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  bellButton: {
+    width: 44, height: 44, alignItems: 'center', justifyContent: 'center',
+  },
+  notificationBadge: {
+    position: 'absolute', top: 10, right: 10, backgroundColor: '#FF3B30',
+    minWidth: 16, height: 16, borderRadius: 8, alignItems: 'center',
+    justifyContent: 'center', paddingHorizontal: 4, borderWidth: 1.5, borderColor: C.background,
+  },
+  notificationBadgeText: { color: '#FFF', fontSize: 9, fontWeight: 'bold' },
   avatarInitial: {
     color: C.purple,
     fontSize: 17,

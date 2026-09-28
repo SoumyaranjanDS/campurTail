@@ -1,4 +1,5 @@
 import React, { useContext, useState } from 'react';
+import { API_URL } from '../../config';
 import {
   View, Text, StyleSheet, Image, ScrollView,
   TouchableOpacity, StatusBar, ActivityIndicator,
@@ -8,7 +9,7 @@ import { AuthContext } from '../../context/AuthContext';
 import { AlertContext } from '../../context/AlertContext';
 import { ArrowLeft, User, MapPin, Clock, CircleAlert, CheckCircle2 } from 'lucide-react-native';
 
-const API = 'https://tails.inkedfact.online/api/v1/admin';
+const API = `${API_URL}/admin`;
 const STATUSES = ['Pending', 'In Progress', 'Resolved'];
 
 const C = {
@@ -84,6 +85,41 @@ const AdminReportDetail = ({ navigation, route }) => {
         <View style={styles.contentPad}>
           <Text style={styles.sectionLabel}>DESCRIPTION</Text>
           <Text style={styles.description}>{report.description || 'No description provided.'}</Text>
+
+          {/* Landmark Details */}
+          {(report.landmarkText || (report.landmarkImages && report.landmarkImages.length > 0)) ? (
+            <View style={{ marginTop: 20, marginBottom: 4 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
+                <MapPin size={14} color="#6456B8" strokeWidth={1.7} />
+                <Text style={{ fontSize: 13, fontWeight: '600', color: '#272D3B', marginLeft: 6 }}>Landmark Details</Text>
+              </View>
+
+              {report.landmarkText ? (
+                <Text style={{ fontSize: 13, lineHeight: 21, color: '#717583', marginBottom: 12 }}>
+                  {report.landmarkText}
+                </Text>
+              ) : null}
+
+              {report.landmarkImages && report.landmarkImages.length > 0 ? (
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  {report.landmarkImages.map((imgUrl, idx) => (
+                    <TouchableOpacity
+                      key={idx}
+                      activeOpacity={0.85}
+                      onPress={() => setFullscreenImage && setFullscreenImage(imgUrl)}
+                    >
+                      <Image
+                        source={{ uri: imgUrl }}
+                        style={{ width: 110, height: 110, borderRadius: 14, backgroundColor: '#EEE7F7' }}
+                        resizeMode="cover"
+                      />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              ) : null}
+            </View>
+          ) : null}
+
           
           <View style={styles.divider} />
 

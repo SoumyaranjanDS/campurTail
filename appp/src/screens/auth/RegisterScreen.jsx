@@ -1,4 +1,5 @@
 import React, { useState, useContext } from 'react';
+import { API_URL as BASE_API_URL } from '../../config';
 import { User, ContactRound, BookOpen } from 'lucide-react-native';
 import axios from 'axios';
 
@@ -11,7 +12,7 @@ import {
   AuthLink,
 } from '../../components/AuthUI';
 
-const API_URL = 'https://tails.inkedfact.online/api/v1/auth';
+const API_URL = `${BASE_API_URL}/auth`;
 
 const RegisterScreen = ({ navigation }) => {
   const [name, setName] = useState('');

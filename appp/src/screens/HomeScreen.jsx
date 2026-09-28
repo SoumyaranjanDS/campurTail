@@ -4,251 +4,163 @@ import React, {
   useContext,
   useCallback,
   useMemo,
+  useRef,
 } from 'react';
+import { API_URL as BASE_API_URL } from '../config';
 import {
   View,
   Text,
   StyleSheet,
-  SectionList,
+  FlatList,
   Image,
   TouchableOpacity,
   RefreshControl,
   ScrollView,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import axios from 'axios';
 import LottieView from 'lottie-react-native';
 import {
-  Activity,
-  ThumbsUp,
+  Bell,
+  Plus,
+  ArrowRight,
   MapPin,
-  ArrowUpRight,
-  Compass,
+  ThumbsUp,
+  FileText,
+  CheckCircle2,
+  Clock,
+  Wrench,
+  ChevronDown,
+  ChevronUp,
+  X,
 } from 'lucide-react-native';
-import Svg, { Rect, Path, Circle, Ellipse } from 'react-native-svg';
+import Svg, {
+  Rect,
+  Path,
+  Circle,
+  Defs,
+  LinearGradient,
+  Stop,
+} from 'react-native-svg';
 
 import Screen from '../components/Screen';
 import { AuthContext } from '../context/AuthContext';
 
-const API_URL = 'https://tails.inkedfact.online/api/v1/incidents';
+const API_URL = `${BASE_API_URL}/incidents`;
+const NOTIFICATIONS_URL = `${BASE_API_URL}/notifications`;
 
-const COLORS = {
+const C = {
   background: '#FAFAF7',
+  white: '#FFFFFF',
   text: '#272D3B',
   secondary: '#717583',
   purple: '#6456B8',
-  lavender: '#EEEAF8',
-  border: '#E6E6DF',
+  lavender: '#EEE7F7',
+  mint: '#E7F0E5',
+  green: '#507B60',
+  amber: '#976D30',
+  border: '#E1DFE7',
 };
 
-const CATEGORY_META = {
-  Infrastructure: {
-    color: '#79639F',
-    background: '#EEE7F7',
-    subtitle: 'The spaces we share.',
+const BASE_CATEGORIES = [
+  'Infrastructure',
+  'Academics',
+  'Hostel',
+  'Cleanliness',
+  'Security',
+  'Other',
+];
+
+const STATUS_OPTIONS = ['All', 'Pending', 'In Progress', 'Resolved'];
+
+const STATUS_META = {
+  Pending: {
+    color: C.amber,
+    background: '#F5EDDF',
+    Icon: Clock,
   },
-  Academics: {
-    color: '#62809B',
-    background: '#E7EEF6',
-    subtitle: 'A better place to learn.',
+  'In Progress': {
+    color: C.purple,
+    background: C.lavender,
+    Icon: Wrench,
   },
-  Hostel: {
-    color: '#A47A50',
-    background: '#F5EBDD',
-    subtitle: 'A little closer to home.',
-  },
-  Cleanliness: {
-    color: '#61886D',
-    background: '#E7F0E5',
-    subtitle: 'Care for our everyday spaces.',
-  },
-  Security: {
-    color: '#947185',
-    background: '#F2E7ED',
-    subtitle: 'Looking out for each other.',
-  },
-  Other: {
-    color: '#7D7A69',
-    background: '#EFEEE4',
-    subtitle: 'Everything else that matters.',
+  Resolved: {
+    color: C.green,
+    background: C.mint,
+    Icon: CheckCircle2,
   },
 };
 
-const CATEGORIES = ['All', ...Object.keys(CATEGORY_META)];
+const getId = value => {
+  if (!value) return null;
 
-const getCategoryMeta = category =>
-  CATEGORY_META[category] || CATEGORY_META.Other;
-
-/*
- * Small code-drawn illustrations.
- * Fixed SVG dimensions avoid the earlier gradient sizing issue.
- */
-const CategoryArt = ({ category, size = 64 }) => {
-  const { color, background } = getCategoryMeta(category);
-
-  let artwork;
-
-  switch (category) {
-    case 'Infrastructure':
-      artwork = (
-        <>
-          <Rect
-            x={18}
-            y={30}
-            width={17}
-            height={27}
-            rx={3}
-            fill={color}
-            opacity={0.5}
-          />
-          <Rect x={33} y={20} width={22} height={37} rx={3} fill={color} />
-          <Path
-            d="M39 28H43 M47 28H50 M39 36H43 M47 36H50 M23 38H28 M23 45H28"
-            stroke="#FFFFFF"
-            strokeWidth={3}
-            strokeLinecap="round"
-          />
-          <Rect x={41} y={47} width={7} height={10} rx={2} fill={background} />
-        </>
-      );
-      break;
-
-    case 'Academics':
-      artwork = (
-        <>
-          <Path
-            d="M36 27 Q25 19 15 24 V51 Q25 46 36 54Z"
-            fill={color}
-            opacity={0.55}
-          />
-          <Path d="M36 27 Q47 19 57 24 V51 Q47 46 36 54Z" fill={color} />
-          <Path d="M36 28V53" stroke="#FFFFFF" strokeWidth={2} />
-          <Path
-            d="M21 31L29 33 M21 38L29 40 M43 33L51 31 M43 40L51 38"
-            stroke="#FFFFFF"
-            strokeWidth={2}
-            strokeLinecap="round"
-          />
-        </>
-      );
-      break;
-
-    case 'Hostel':
-      artwork = (
-        <>
-          <Path d="M13 32L36 14L59 32Z" fill={color} />
-          <Rect
-            x={20}
-            y={30}
-            width={32}
-            height={27}
-            rx={3}
-            fill={color}
-            opacity={0.6}
-          />
-          <Rect x={26} y={36} width={7} height={7} rx={2} fill="#FFFFFF" />
-          <Rect x={40} y={36} width={7} height={7} rx={2} fill="#FFFFFF" />
-          <Rect x={32} y={46} width={9} height={11} rx={2} fill={color} />
-        </>
-      );
-      break;
-
-    case 'Cleanliness':
-      artwork = (
-        <>
-          <Path
-            d="M39 21 Q59 18 55 37 Q38 43 39 21Z"
-            fill={color}
-            opacity={0.6}
-          />
-          <Path
-            d="M39 41L49 28"
-            stroke={color}
-            strokeWidth={2}
-            strokeLinecap="round"
-          />
-          <Rect x={20} y={34} width={23} height={23} rx={4} fill={color} />
-          <Path
-            d="M18 32H45 M27 27H36 M27 41V50 M35 41V50"
-            stroke={color}
-            strokeWidth={3}
-            strokeLinecap="round"
-          />
-          <Path
-            d="M27 41V50 M35 41V50"
-            stroke="#FFFFFF"
-            strokeWidth={2}
-            strokeLinecap="round"
-          />
-        </>
-      );
-      break;
-
-    case 'Security':
-      artwork = (
-        <>
-          <Rect x={14} y={29} width={9} height={28} rx={2} fill={color} />
-          <Rect x={49} y={29} width={9} height={28} rx={2} fill={color} />
-          <Path
-            d="M22 35Q36 20 50 35"
-            stroke={color}
-            strokeWidth={4}
-            fill="none"
-          />
-          <Path
-            d="M28 36V56 M36 32V56 M44 36V56 M24 46H49"
-            stroke={color}
-            strokeWidth={2}
-          />
-          <Circle cx={36} cy={16} r={6} fill={color} opacity={0.45} />
-        </>
-      );
-      break;
-
-    default:
-      artwork = (
-        <>
-          <Path
-            d="M35 17V58"
-            stroke={color}
-            strokeWidth={4}
-            strokeLinecap="round"
-          />
-          <Path d="M20 22H48L56 29L48 36H20Z" fill={color} />
-          <Path d="M48 39H22L15 45L22 51H48Z" fill={color} opacity={0.5} />
-          <Path
-            d="M27 29H43"
-            stroke="#FFFFFF"
-            strokeWidth={2}
-            strokeLinecap="round"
-          />
-        </>
-      );
+  if (typeof value === 'object') {
+    return value._id || value.userId || null;
   }
 
-  return (
-    <Svg width={size} height={size} viewBox="0 0 72 72">
-      <Circle cx={36} cy={36} r={31} fill={background} />
-      <Ellipse cx={36} cy={60} rx={24} ry={3} fill={color} opacity={0.12} />
-      {artwork}
-    </Svg>
-  );
+  return value;
 };
 
-const StatusLabel = ({ status }) => {
-  const tone =
-    status === 'Resolved'
-      ? '#507B60'
-      : status === 'In Progress'
-      ? COLORS.purple
-      : '#976D30';
+const formatDate = value => {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return '';
+
+  return date.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+  });
+};
+
+const StatusBadge = ({ status }) => {
+  const meta = STATUS_META[status] || STATUS_META.Pending;
+  const Icon = meta.Icon;
 
   return (
-    <View style={styles.status}>
-      <View style={[styles.statusDot, { backgroundColor: tone }]} />
-      <Text style={[styles.statusText, { color: tone }]}>{status}</Text>
+    <View style={[styles.statusBadge, { backgroundColor: meta.background }]}>
+      <Icon size={12} color={meta.color} strokeWidth={1.8} />
+      <Text style={[styles.statusText, { color: meta.color }]}>
+        {status || 'Pending'}
+      </Text>
     </View>
   );
 };
+
+const CampusGraphic = () => (
+  <Svg width="90" height="90" viewBox="0 0 100 100">
+    <Defs>
+      <LinearGradient id="gradSky" x1="0%" y1="0%" x2="0%" y2="100%">
+        <Stop offset="0%" stopColor="#EEE7F7" />
+        <Stop offset="100%" stopColor="#FAFAF7" />
+      </LinearGradient>
+    </Defs>
+    <Circle cx="50" cy="50" r="45" fill="url(#gradSky)" />
+
+    {/* Background Building */}
+    <Rect x="20" y="35" width="40" height="50" rx="4" fill="#DCD0EC" />
+    <Path d="M15 35 L40 15 L65 35 Z" fill="#DCD0EC" />
+
+    {/* Main Building */}
+    <Rect x="40" y="45" width="45" height="40" rx="4" fill="#6456B8" />
+    <Path d="M35 45 L62.5 25 L90 45 Z" fill="#6456B8" />
+
+    {/* Pillars on Main Building */}
+    <Rect x="46" y="55" width="5" height="30" fill="#FFFFFF" opacity="0.85" />
+    <Rect x="58" y="55" width="5" height="30" fill="#FFFFFF" opacity="0.85" />
+    <Rect x="70" y="55" width="5" height="30" fill="#FFFFFF" opacity="0.85" />
+
+    {/* Clock on Main Building */}
+    <Circle cx="62.5" cy="40" r="5" fill="#FFFFFF" />
+    <Circle cx="62.5" cy="40" r="2.5" fill="#6456B8" />
+
+    {/* Trees */}
+    <Circle cx="25" cy="65" r="12" fill="#507B60" />
+    <Rect x="23" y="75" width="4" height="10" rx="2" fill="#976D30" />
+
+    <Circle cx="85" cy="70" r="10" fill="#507B60" />
+    <Rect x="83.5" y="78" width="3" height="8" rx="1.5" fill="#976D30" />
+  </Svg>
+);
 
 const HomeScreen = ({ navigation }) => {
   const { userToken, userData } = useContext(AuthContext);
@@ -256,17 +168,35 @@ const HomeScreen = ({ navigation }) => {
   const [incidents, setIncidents] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+
+  const [selectedScope, setSelectedScope] = useState('Campus');
+  const [selectedStatus, setSelectedStatus] = useState('All');
   const [selectedCategory, setSelectedCategory] = useState('All');
+
+  const [showCategories, setShowCategories] = useState(false);
+  const [showHowItWorks, setShowHowItWorks] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  const pendingUpvotes = useRef(new Set());
+
+  const currentUserId = getId(userData);
+  const firstName = userData?.name?.trim()?.split(/\s+/)[0];
 
   const fetchIncidents = useCallback(async () => {
     try {
+      setLoadError('');
+
       const response = await axios.get(API_URL, {
-        headers: { Authorization: `Bearer ${userToken}` },
+        headers: {
+          Authorization: `Bearer ${userToken}`,
+        },
       });
 
       setIncidents(response.data);
     } catch (error) {
       console.error(error);
+      setLoadError('Reports could not be refreshed. Please try again.');
     } finally {
       setInitialLoading(false);
     }
@@ -274,29 +204,71 @@ const HomeScreen = ({ navigation }) => {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await fetchIncidents();
-    setRefreshing(false);
+
+    try {
+      await fetchIncidents();
+    } finally {
+      setRefreshing(false);
+    }
   }, [fetchIncidents]);
 
   useEffect(() => {
     fetchIncidents();
   }, [fetchIncidents]);
 
-  const handleUpvote = async id => {
-    try {
-      setIncidents(prev =>
-        prev.map(inc => {
-          if (inc._id === id) {
-            const hasUpvoted = inc.upvotes.includes(userData._id);
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
 
-            const newUpvotes = hasUpvoted
-              ? inc.upvotes.filter(uid => uid !== userData._id)
-              : [...inc.upvotes, userData._id];
+      const fetchUnread = async () => {
+        try {
+          const response = await axios.get(NOTIFICATIONS_URL, {
+            headers: {
+              Authorization: `Bearer ${userToken}`,
+            },
+          });
 
-            return { ...inc, upvotes: newUpvotes };
+          if (active) {
+            setUnreadCount(
+              response.data.filter(notification => !notification.isRead).length,
+            );
           }
+        } catch (error) {
+          console.error(error);
+        }
+      };
 
-          return inc;
+      if (userToken) fetchUnread();
+
+      return () => {
+        active = false;
+      };
+    }, [userToken]),
+  );
+
+  const handleUpvote = async id => {
+    if (!currentUserId || pendingUpvotes.current.has(id)) return;
+
+    pendingUpvotes.current.add(id);
+
+    try {
+      setIncidents(previous =>
+        previous.map(incident => {
+          if (incident._id !== id) return incident;
+
+          const upvotes = incident.upvotes || [];
+          const hasUpvoted = upvotes.some(
+            value => String(getId(value)) === String(currentUserId),
+          );
+
+          return {
+            ...incident,
+            upvotes: hasUpvoted
+              ? upvotes.filter(
+                  value => String(getId(value)) !== String(currentUserId),
+                )
+              : [...upvotes, currentUserId],
+          };
         }),
       );
 
@@ -304,87 +276,117 @@ const HomeScreen = ({ navigation }) => {
         `${API_URL}/${id}/upvote`,
         {},
         {
-          headers: { Authorization: `Bearer ${userToken}` },
+          headers: {
+            Authorization: `Bearer ${userToken}`,
+          },
         },
       );
     } catch (error) {
       console.error(error);
-      setInitialLoading(false);
-      fetchIncidents();
+      await fetchIncidents();
+    } finally {
+      pendingUpvotes.current.delete(id);
     }
   };
 
-  /*
-   * Group reports for presentation only.
-   * Preserve the server's order within each category.
-   * Unexpected categories remain visible in the All view.
-   */
-  const sections = useMemo(() => {
-    const groups = new Map(CATEGORIES.slice(1).map(category => [category, []]));
+  // Include any categories returned by the server.
+  const categories = useMemo(
+    () => [
+      'All',
+      ...new Set([
+        ...BASE_CATEGORIES,
+        ...incidents.map(incident => incident.category || 'Other'),
+      ]),
+    ],
+    [incidents],
+  );
 
-    incidents.forEach(incident => {
-      const category = incident.category || 'Other';
+  // Presentation filters only; preserve the server's report order.
+  const visibleReports = useMemo(
+    () =>
+      incidents.filter(incident => {
+        const reporterId = getId(incident.reportedBy);
 
-      if (!groups.has(category)) {
-        groups.set(category, []);
-      }
+        const matchesScope =
+          selectedScope === 'Campus' ||
+          (currentUserId &&
+            reporterId &&
+            String(reporterId) === String(currentUserId));
 
-      groups.get(category).push(incident);
-    });
+        const matchesStatus =
+          selectedStatus === 'All' || incident.status === selectedStatus;
 
-    return [...groups.entries()]
-      .filter(
-        ([category, reports]) =>
-          reports.length > 0 &&
-          (selectedCategory === 'All' || selectedCategory === category),
-      )
-      .map(([title, data], index) => ({
-        key: title,
-        title,
-        data,
-        stopNumber: index + 1,
-      }));
-  }, [incidents, selectedCategory]);
+        const matchesCategory =
+          selectedCategory === 'All' ||
+          (incident.category || 'Other') === selectedCategory;
 
-  const renderReport = ({ item, section, index }) => {
-    const hasUpvoted = userData && item.upvotes.includes(userData._id);
+        return matchesScope && matchesStatus && matchesCategory;
+      }),
+    [incidents, currentUserId, selectedScope, selectedStatus, selectedCategory],
+  );
 
-    const meta = getCategoryMeta(section.title);
-    const isLast = index === section.data.length - 1;
+  const hasFilters = selectedStatus !== 'All' || selectedCategory !== 'All';
+
+  const clearFilters = () => {
+    setSelectedStatus('All');
+    setSelectedCategory('All');
+  };
+
+  const openReport = id => {
+    navigation.navigate('ReportDetail', { incidentId: id });
+  };
+
+  const startReport = () => {
+    navigation.navigate('Report');
+  };
+
+  const renderReport = ({ item }) => {
+    const upvotes = item.upvotes || [];
+
+    const hasUpvoted = Boolean(
+      currentUserId &&
+        upvotes.some(value => String(getId(value)) === String(currentUserId)),
+    );
+
+    const isMine = Boolean(
+      currentUserId &&
+        getId(item.reportedBy) &&
+        String(getId(item.reportedBy)) === String(currentUserId),
+    );
 
     return (
       <View style={styles.reportRow}>
-        {/* Decorative path alongside each report */}
-        <View style={styles.pathColumn} pointerEvents="none">
-          <View style={styles.pathLine} />
-          <View style={[styles.reportNode, { borderColor: meta.color }]} />
-        </View>
+        <TouchableOpacity
+          onPress={() => openReport(item._id)}
+          activeOpacity={0.75}
+          accessibilityRole="button"
+          accessibilityLabel={`View issue: ${item.title}. ${item.status}`}
+        >
+          <View style={styles.reportTop}>
+            <Text style={styles.reportCategory} numberOfLines={1}>
+              {item.category || 'Other'}
+            </Text>
 
-        <View style={[styles.reportContent, !isLast && styles.reportDivider]}>
-          <TouchableOpacity
-            style={styles.reportMain}
-            activeOpacity={0.75}
-            accessibilityRole="button"
-            accessibilityLabel={`Open report: ${item.title}`}
-            onPress={() =>
-              navigation.navigate('ReportDetail', {
-                incidentId: item._id,
-              })
-            }
-          >
+            <StatusBadge status={item.status} />
+          </View>
+
+          <View style={styles.reportMain}>
             <View style={styles.reportCopy}>
-              <StatusLabel status={item.status} />
-
-              <Text style={styles.reportTitle} numberOfLines={3}>
+              <Text style={styles.reportTitle} numberOfLines={2}>
                 {item.title}
               </Text>
 
               <View style={styles.locationRow}>
-                <MapPin size={13} color={COLORS.secondary} strokeWidth={1.7} />
+                <MapPin size={14} color={C.secondary} strokeWidth={1.7} />
                 <Text style={styles.locationText} numberOfLines={2}>
-                  {item.location}
+                  {item.location || 'Location not provided'}
                 </Text>
               </View>
+
+              <Text style={styles.reportDate}>
+                Reported {formatDate(item.createdAt)}
+                {isMine ? ' · By you' : ''}
+              </Text>
             </View>
 
             {item.photo ? (
@@ -392,260 +394,421 @@ const HomeScreen = ({ navigation }) => {
                 source={{ uri: item.photo }}
                 style={styles.reportPhoto}
                 resizeMode="cover"
+                accessibilityLabel="Reported issue photo"
               />
             ) : null}
+          </View>
+        </TouchableOpacity>
+
+        <View style={styles.reportFooter}>
+          <TouchableOpacity
+            style={[styles.upvoteButton, hasUpvoted && styles.upvoteSelected]}
+            onPress={() => handleUpvote(item._id)}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={`${
+              hasUpvoted ? 'Remove upvote' : 'Upvote issue'
+            }. ${upvotes.length} upvotes`}
+            accessibilityState={{ selected: hasUpvoted }}
+          >
+            <ThumbsUp
+              size={15}
+              strokeWidth={1.8}
+              color={hasUpvoted ? C.purple : C.secondary}
+            />
+
+            <Text style={[styles.upvoteText, hasUpvoted && styles.purpleText]}>
+              {upvotes.length} {upvotes.length === 1 ? 'upvote' : 'upvotes'}
+            </Text>
           </TouchableOpacity>
 
-          <View style={styles.reportFooter}>
-            <View style={styles.reporter}>
-              {item.reportedBy?.profilePhoto ? (
-                <Image
-                  source={{ uri: item.reportedBy.profilePhoto }}
-                  style={styles.avatar}
-                />
-              ) : (
-                <View style={[styles.avatar, styles.avatarPlaceholder]}>
-                  <Text style={styles.avatarLetter}>
-                    {item.reportedBy?.name?.charAt(0) || 'U'}
-                  </Text>
-                </View>
-              )}
-
-              <View style={styles.reporterCopy}>
-                <Text style={styles.reporterName} numberOfLines={1}>
-                  {item.reportedBy?.name || 'Anonymous'}
-                </Text>
-                <Text style={styles.reporterMeta} numberOfLines={2}>
-                  {item.reportedBy?.branch || 'Student'}
-                  {' · '}
-                  {new Date(item.createdAt).toLocaleDateString(undefined, {
-                    month: 'short',
-                    day: 'numeric',
-                  })}
-                </Text>
-              </View>
-            </View>
-
-            <TouchableOpacity
-              style={[styles.upvote, hasUpvoted && styles.upvoteActive]}
-              onPress={() => handleUpvote(item._id)}
-              activeOpacity={0.7}
-              accessibilityRole="button"
-              accessibilityLabel={`${
-                hasUpvoted ? 'Remove upvote' : 'Upvote report'
-              }. ${item.upvotes.length} upvotes`}
-              accessibilityState={{ selected: Boolean(hasUpvoted) }}
-            >
-              <ThumbsUp
-                size={16}
-                strokeWidth={1.8}
-                color={hasUpvoted ? COLORS.purple : COLORS.secondary}
-              />
-              <Text
-                style={[
-                  styles.upvoteText,
-                  hasUpvoted && styles.upvoteTextActive,
-                ]}
-              >
-                {item.upvotes.length}
-              </Text>
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity
+            style={styles.detailsButton}
+            onPress={() => openReport(item._id)}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={`View details for ${item.title}`}
+          >
+            <Text style={styles.detailsText}>View details</Text>
+            <ArrowRight size={15} color={C.purple} strokeWidth={1.7} />
+          </TouchableOpacity>
         </View>
       </View>
     );
   };
 
-  const renderSectionHeader = ({ section }) => {
-    const meta = getCategoryMeta(section.title);
+  const listHeader = (
+    <View>
+      {/* Purpose and primary action come before filters. */}
+      <View style={styles.intro}>
+        <View style={styles.heroRow}>
+          <View style={styles.heroCopy}>
+            <Text style={styles.greeting}>
+              {firstName ? `Hi, ${firstName}` : 'Welcome to Campus Trail'}
+            </Text>
 
-    return (
-      <View style={styles.sectionHeader}>
-        <View style={styles.sectionMarkerColumn}>
-          <View
-            style={[styles.sectionMarker, { backgroundColor: meta.background }]}
-          >
-            <Text style={[styles.sectionNumber, { color: meta.color }]}>
-              {String(section.stopNumber).padStart(2, '0')}
+            <Text style={styles.heroTitle}>
+              Report an issue.{'\n'}Follow its progress.
+            </Text>
+
+            <Text style={styles.heroDescription}>
+              Tell campus staff what needs attention and track your report until
+              it’s resolved.
             </Text>
           </View>
-          <View style={styles.sectionConnector} />
+          <View style={styles.heroGraphic}>
+            <CampusGraphic />
+          </View>
         </View>
 
-        <View style={styles.sectionHeading}>
-          <Text style={styles.sectionEyebrow}>
-            {section.data.length}{' '}
-            {section.data.length === 1 ? 'REPORT' : 'REPORTS'}
+        <TouchableOpacity
+          style={styles.primaryButton}
+          onPress={startReport}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel="Report a campus issue"
+        >
+          <View style={styles.primaryButtonCopy}>
+            <Plus size={20} color={C.white} strokeWidth={2} />
+            <Text style={styles.primaryButtonText}>Report an issue</Text>
+          </View>
+
+          <ArrowRight size={20} color={C.white} strokeWidth={1.8} />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.helpToggle}
+          onPress={() => setShowHowItWorks(previous => !previous)}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: showHowItWorks }}
+        >
+          <Text style={styles.helpToggleText}>How does it work?</Text>
+
+          {showHowItWorks ? (
+            <ChevronUp size={15} color={C.secondary} />
+          ) : (
+            <ChevronDown size={15} color={C.secondary} />
+          )}
+        </TouchableOpacity>
+
+        {showHowItWorks ? (
+          <View style={styles.helpSection}>
+            {[
+              {
+                title: 'Tell us what’s wrong',
+                description: 'Add a photo, description, and location.',
+              },
+              {
+                title: 'Staff review your report',
+                description:
+                  'Once assigned, use the issue conversation to share details.',
+              },
+              {
+                title: 'Track the resolution',
+                description:
+                  'Open My reports to follow status changes and updates.',
+              },
+            ].map((step, index) => (
+              <View key={step.title} style={styles.helpStep}>
+                <View style={styles.stepNumber}>
+                  <Text style={styles.stepNumberText}>{index + 1}</Text>
+                </View>
+
+                <View style={styles.helpStepCopy}>
+                  <Text style={styles.helpStepTitle}>{step.title}</Text>
+                  <Text style={styles.helpStepDescription}>
+                    {step.description}
+                  </Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        ) : null}
+      </View>
+
+      {/* Clear distinction between community issues and personal tracking. */}
+      <View style={styles.scopeTabs}>
+        {[
+          { value: 'Campus', label: 'Campus reports' },
+          { value: 'Mine', label: 'My reports' },
+        ].map(option => {
+          const selected = selectedScope === option.value;
+
+          return (
+            <TouchableOpacity
+              key={option.value}
+              style={[styles.scopeTab, selected && styles.scopeTabSelected]}
+              onPress={() => setSelectedScope(option.value)}
+              activeOpacity={0.75}
+              accessibilityRole="tab"
+              accessibilityState={{ selected }}
+            >
+              <Text
+                style={[
+                  styles.scopeTabText,
+                  selected && styles.scopeTabTextSelected,
+                ]}
+              >
+                {option.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      <Text style={styles.scopeDescription}>
+        {selectedScope === 'Mine'
+          ? 'Your submitted issues. Open a report to check updates.'
+          : 'See what has been reported before adding a new issue.'}
+      </Text>
+
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.statusFilters}
+      >
+        {STATUS_OPTIONS.map(option => {
+          const selected = selectedStatus === option;
+
+          return (
+            <TouchableOpacity
+              key={option}
+              style={[styles.filterPill, selected && styles.filterPillSelected]}
+              onPress={() => setSelectedStatus(option)}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityLabel={`Show ${
+                option === 'All' ? 'all' : option.toLowerCase()
+              } reports`}
+              accessibilityState={{ selected }}
+            >
+              <Text
+                style={[
+                  styles.filterText,
+                  selected && styles.filterTextSelected,
+                ]}
+              >
+                {option === 'All' ? 'All statuses' : option}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+
+      <View style={styles.categoryControlRow}>
+        <TouchableOpacity
+          style={styles.categoryToggle}
+          onPress={() => setShowCategories(previous => !previous)}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: showCategories }}
+        >
+          <Text style={styles.categoryToggleText}>
+            {selectedCategory === 'All' ? 'All categories' : selectedCategory}
           </Text>
 
-          <Text style={styles.sectionTitle}>{section.title}</Text>
-          <Text style={styles.sectionSubtitle}>{meta.subtitle}</Text>
-        </View>
+          {showCategories ? (
+            <ChevronUp size={15} color={C.secondary} />
+          ) : (
+            <ChevronDown size={15} color={C.secondary} />
+          )}
+        </TouchableOpacity>
 
-        <View
-          accessible={false}
-          accessibilityElementsHidden
-          importantForAccessibility="no-hide-descendants"
-        >
-          <CategoryArt category={section.title} size={62} />
-        </View>
+        {hasFilters ? (
+          <TouchableOpacity
+            style={styles.clearButton}
+            onPress={clearFilters}
+            accessibilityRole="button"
+            accessibilityLabel="Clear status and category filters"
+          >
+            <X size={13} color={C.purple} />
+            <Text style={styles.clearText}>Clear filters</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
-    );
-  };
+
+      {showCategories ? (
+        <View style={styles.categoryOptions}>
+          {categories.map(category => {
+            const selected = selectedCategory === category;
+
+            return (
+              <TouchableOpacity
+                key={category}
+                style={[
+                  styles.categoryOption,
+                  selected && styles.categoryOptionSelected,
+                ]}
+                onPress={() => {
+                  setSelectedCategory(category);
+                  setShowCategories(false);
+                }}
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
+              >
+                <Text
+                  style={[
+                    styles.categoryOptionText,
+                    selected && styles.purpleText,
+                  ]}
+                >
+                  {category === 'All' ? 'All categories' : category}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      ) : null}
+
+      {loadError ? (
+        <View style={styles.errorNotice}>
+          <Text style={styles.errorText}>{loadError}</Text>
+
+          <TouchableOpacity
+            onPress={onRefresh}
+            style={styles.retryButton}
+            disabled={refreshing}
+            accessibilityRole="button"
+          >
+            <Text style={styles.retryText}>
+              {refreshing ? 'Retrying…' : 'Retry'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+
+      {!initialLoading && !loadError ? (
+        <Text style={styles.resultsLabel}>
+          {visibleReports.length}{' '}
+          {visibleReports.length === 1 ? 'report' : 'reports'}
+          {selectedScope === 'Mine' ? ' by you' : ''}
+          {hasFilters ? ' matching your filters' : ''}
+        </Text>
+      ) : null}
+    </View>
+  );
+
+  const emptyContent = initialLoading ? (
+    <View style={styles.loadingContainer}>
+      <LottieView
+        source={require('../assets/animations/loading.json')}
+        autoPlay
+        loop
+        style={styles.loadingAnimation}
+      />
+      <Text style={styles.loadingText}>Loading campus reports…</Text>
+    </View>
+  ) : loadError ? null : (
+    <View style={styles.emptyContainer}>
+      <View style={styles.emptyIcon}>
+        <FileText size={26} color={C.purple} strokeWidth={1.5} />
+      </View>
+
+      <Text style={styles.emptyTitle}>
+        {hasFilters
+          ? 'No matching reports'
+          : selectedScope === 'Mine'
+          ? 'Your reports will appear here'
+          : 'No campus reports yet'}
+      </Text>
+
+      <Text style={styles.emptyDescription}>
+        {hasFilters
+          ? 'Try another status or category to see more issues.'
+          : selectedScope === 'Mine'
+          ? 'Submit an issue, then return here to follow its progress.'
+          : 'Spotted something that needs attention? Start a report.'}
+      </Text>
+
+      <TouchableOpacity
+        style={styles.emptyAction}
+        onPress={hasFilters ? clearFilters : startReport}
+        accessibilityRole="button"
+      >
+        <Text style={styles.emptyActionText}>
+          {hasFilters ? 'Clear filters' : 'Report an issue'}
+        </Text>
+        <ArrowRight size={16} color={C.purple} />
+      </TouchableOpacity>
+    </View>
+  );
 
   return (
     <Screen>
       <View style={styles.container}>
         <View style={styles.header}>
           <View style={styles.brand}>
-            <View style={styles.brandIcon}>
-              <Activity size={21} color={COLORS.purple} />
-            </View>
-            <Text style={styles.brandText}>campus tails</Text>
-          </View>
-
-          <Text style={styles.headerLabel}>OUR CAMPUS</Text>
-        </View>
-
-        {/* Illustrations act as category selectors */}
-        <View style={styles.navigationStrip}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.categoryScroll}
-          >
-            {CATEGORIES.map(category => {
-              const selected = selectedCategory === category;
-
-              return (
-                <TouchableOpacity
-                  key={category}
-                  style={styles.categoryButton}
-                  onPress={() => setSelectedCategory(category)}
-                  activeOpacity={0.75}
-                  accessibilityRole="button"
-                  accessibilityLabel={
-                    category === 'All'
-                      ? 'Show all categories'
-                      : `Show ${category} reports`
-                  }
-                  accessibilityState={{ selected }}
-                >
-                  <View
-                    style={[
-                      styles.categoryArtContainer,
-                      selected && styles.categoryArtSelected,
-                    ]}
-                  >
-                    {category === 'All' ? (
-                      <View style={styles.allIcon}>
-                        <Compass
-                          size={26}
-                          color={COLORS.purple}
-                          strokeWidth={1.5}
-                        />
-                      </View>
-                    ) : (
-                      <CategoryArt category={category} size={52} />
-                    )}
-                  </View>
-
-                  <Text
-                    style={[
-                      styles.categoryLabel,
-                      selected && styles.categoryLabelSelected,
-                    ]}
-                  >
-                    {category === 'All' ? 'All stops' : category}
-                  </Text>
-
-                  <View
-                    style={[
-                      styles.categoryIndicator,
-                      selected && styles.categoryIndicatorSelected,
-                    ]}
-                  />
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        </View>
-
-        {initialLoading ? (
-          <View style={styles.loadingContainer}>
-            <LottieView
-              source={require('../assets/animations/loading.json')}
-              autoPlay
-              loop
-              style={styles.loadingAnimation}
-            />
-            <Text style={styles.loadingText}>Catching up with campus…</Text>
-          </View>
-        ) : (
-          <SectionList
-            // Reset the scroll position when changing category.
-            key={selectedCategory}
-            style={styles.list}
-            sections={sections}
-            extraData={userData?._id}
-            keyExtractor={item => item._id}
-            renderItem={renderReport}
-            renderSectionHeader={renderSectionHeader}
-            stickySectionHeadersEnabled={false}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.listContent}
-            refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={onRefresh}
-                colors={[COLORS.purple]}
-                tintColor={COLORS.purple}
+            <View style={styles.logoWrap}>
+              <Image
+                source={require('../../public/app-logo.png')}
+                style={styles.logo}
+                resizeMode="contain"
               />
-            }
-            ListHeaderComponent={
-              <View style={styles.intro}>
-                <Text style={styles.introEyebrow}>THE CAMPUS WALK</Text>
+            </View>
 
-                <View style={styles.introTitleRow}>
-                  <Text style={styles.introTitle}>
-                    Little stops.{'\n'}Meaningful changes.
-                  </Text>
-                  <ArrowUpRight size={27} color="#A99BBB" strokeWidth={1.3} />
-                </View>
+            <View style={styles.brandCopy}>
+              <Text style={styles.brandName}>campus trail</Text>
+              <Text style={styles.brandSubtitle}>Campus issue reporting</Text>
+            </View>
+          </View>
 
-                <Text style={styles.introSubtitle}>
-                  Explore reports across campus life.
+          <TouchableOpacity
+            style={styles.bellButton}
+            onPress={() => navigation.navigate('Notifications')}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={`Notifications. ${unreadCount} unread`}
+          >
+            <Bell size={22} color={C.text} strokeWidth={1.7} />
+
+            {unreadCount > 0 ? (
+              <View style={styles.notificationBadge}>
+                <Text style={styles.notificationBadgeText}>
+                  {unreadCount > 9 ? '9+' : unreadCount}
                 </Text>
               </View>
-            }
-            ListEmptyComponent={
-              !refreshing ? (
-                <View style={styles.emptyContainer}>
-                  <Compass size={32} color={COLORS.purple} strokeWidth={1.4} />
-                  <Text style={styles.emptyTitle}>A quiet stop.</Text>
-                  <Text style={styles.emptyText}>
-                    {selectedCategory === 'All'
-                      ? 'No issues reported yet.'
-                      : `No reports in ${selectedCategory} yet.`}
+            ) : null}
+          </TouchableOpacity>
+        </View>
+
+        <FlatList
+          style={styles.list}
+          data={visibleReports}
+          keyExtractor={item => String(item._id)}
+          renderItem={renderReport}
+          extraData={currentUserId}
+          ListHeaderComponent={listHeader}
+          ListEmptyComponent={emptyContent}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.listContent}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[C.purple]}
+              tintColor={C.purple}
+            />
+          }
+          ListFooterComponent={
+            !initialLoading ? (
+              <View style={styles.footer}>
+                {visibleReports.length > 0 ? (
+                  <Text style={styles.footerText}>
+                    You’ve reached the end of these reports.
                   </Text>
-                </View>
-              ) : null
-            }
-            ListFooterComponent={
-              sections.length > 0 ? (
-                <View style={styles.walkEnd}>
-                  <View style={styles.walkEndTextRow}>
-                    <View style={styles.endDot} />
-                    <Text style={styles.endText}>
-                      You’re caught up with this walk.
-                    </Text>
-                  </View>
-                  <Image source={require('../../public/logo-bput.png')} style={styles.footerLogo} resizeMode="contain" />
-                </View>
-              ) : null
-            }
-          />
-        )}
+                ) : null}
+
+                <Image
+                  source={require('../../public/logo-bput.png')}
+                  style={styles.footerLogo}
+                  resizeMode="contain"
+                  accessibilityLabel="University logo"
+                />
+              </View>
+            ) : null
+          }
+        />
       </View>
     </Screen>
   );
@@ -654,411 +817,515 @@ const HomeScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: C.background,
   },
   header: {
     paddingHorizontal: 20,
-    paddingTop: 14,
-    paddingBottom: 15,
+    paddingTop: 12,
+    paddingBottom: 14,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: C.border,
   },
   brand: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    flexShrink: 1,
+    marginRight: 12,
   },
-  brandIcon: {
-    width: 35,
-    height: 35,
-    borderRadius: 12,
-    backgroundColor: COLORS.lavender,
+  logoWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: C.lavender,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 9,
+    marginRight: 10,
   },
-  brandText: {
-    fontSize: 18,
+  logo: {
+    width: 32,
+    height: 32,
+  },
+  brandCopy: {
+    flex: 1,
+  },
+  brandName: {
+    fontSize: 19,
     fontWeight: '600',
+    color: C.text,
     letterSpacing: -0.6,
-    color: COLORS.text,
-    flexShrink: 1,
   },
-  headerLabel: {
-    fontSize: 8,
-    letterSpacing: 1.2,
-    color: '#7C8277',
-    marginLeft: 12,
+  brandSubtitle: {
+    color: C.secondary,
+    fontSize: 11,
+    marginTop: 3,
   },
-
-  navigationStrip: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: COLORS.border,
-  },
-  categoryScroll: {
-    paddingHorizontal: 12,
-    paddingTop: 3,
-    paddingBottom: 8,
-  },
-  categoryButton: {
-    width: 92,
-    alignItems: 'center',
-    paddingHorizontal: 2,
-    paddingVertical: 5,
-  },
-  categoryArtContainer: {
-    width: 58,
-    height: 58,
-    borderRadius: 21,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'transparent',
-  },
-  categoryArtSelected: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#DCD2EA',
-  },
-  allIcon: {
-    width: 45,
-    height: 45,
-    borderRadius: 23,
-    backgroundColor: COLORS.lavender,
+  bellButton: {
+    width: 44,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  categoryLabel: {
-    fontSize: 10,
-    lineHeight: 15,
-    color: COLORS.secondary,
-    textAlign: 'center',
-    marginTop: 6,
+  notificationBadge: {
+    position: 'absolute',
+    top: 1,
+    right: 0,
+    minWidth: 19,
+    height: 19,
+    borderRadius: 10,
+    paddingHorizontal: 4,
+    backgroundColor: C.purple,
+    borderWidth: 2,
+    borderColor: C.background,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  categoryLabelSelected: {
-    color: COLORS.purple,
+  notificationBadgeText: {
+    fontSize: 9,
     fontWeight: '600',
-  },
-  categoryIndicator: {
-    width: 15,
-    height: 3,
-    borderRadius: 2,
-    marginTop: 7,
-    backgroundColor: 'transparent',
-  },
-  categoryIndicatorSelected: {
-    backgroundColor: '#A595C2',
+    color: C.white,
   },
 
   list: {
     flex: 1,
   },
   listContent: {
+    paddingHorizontal: 22,
+    paddingBottom: 24,
     flexGrow: 1,
-    paddingHorizontal: 20,
-    paddingBottom: 28,
   },
   intro: {
     paddingTop: 25,
-    paddingBottom: 12,
+    paddingBottom: 16,
   },
-  introEyebrow: {
-    fontSize: 9,
-    letterSpacing: 1.7,
-    fontWeight: '600',
-    color: '#867791',
-    marginBottom: 10,
-  },
-  introTitleRow: {
+  heroRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  introTitle: {
+  heroCopy: {
     flex: 1,
-    fontSize: 29,
-    lineHeight: 36,
+    paddingRight: 10,
+  },
+  heroGraphic: {
+    width: 90,
+    height: 90,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+  },
+  greeting: {
+    color: C.purple,
+    fontSize: 13,
+    fontWeight: '500',
+    marginBottom: 8,
+  },
+  heroTitle: {
+    color: C.text,
+    fontSize: 27,
+    lineHeight: 33,
+    letterSpacing: -0.8,
     fontWeight: '600',
-    letterSpacing: -1,
-    color: COLORS.text,
-    paddingRight: 12,
   },
-  introSubtitle: {
-    fontSize: 12,
-    lineHeight: 19,
-    color: COLORS.secondary,
-    marginTop: 10,
+  heroDescription: {
+    color: C.secondary,
+    fontSize: 13,
+    lineHeight: 20,
+    marginTop: 8,
+    maxWidth: 420,
   },
-
-  sectionHeader: {
+  primaryButton: {
+    minHeight: 54,
+    backgroundColor: C.purple,
+    borderRadius: 17,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    marginTop: 20,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingTop: 23,
-    paddingBottom: 17,
+    justifyContent: 'space-between',
   },
-  sectionMarkerColumn: {
-    width: 32,
-    alignSelf: 'stretch',
+  primaryButtonCopy: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginRight: 10,
+    flexShrink: 1,
+    marginRight: 12,
   },
-  sectionMarker: {
-    width: 30,
-    height: 30,
-    borderRadius: 11,
+  primaryButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: C.white,
+    marginLeft: 9,
+    flexShrink: 1,
+  },
+  helpToggle: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+  },
+  helpToggleText: {
+    color: C.secondary,
+    fontSize: 12,
+    marginRight: 7,
+  },
+  helpSection: {
+    paddingTop: 4,
+    paddingBottom: 8,
+  },
+  helpStep: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  stepNumber: {
+    width: 25,
+    height: 25,
+    borderRadius: 9,
+    backgroundColor: C.lavender,
     alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 1,
+    marginRight: 11,
   },
-  sectionNumber: {
-    fontSize: 10,
+  stepNumberText: {
+    color: C.purple,
     fontWeight: '600',
-  },
-  sectionConnector: {
-    position: 'absolute',
-    top: 32,
-    bottom: -17,
-    left: 15,
-    borderLeftWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: '#D5CFDE',
-  },
-  sectionHeading: {
-    flex: 1,
-    paddingRight: 6,
-  },
-  sectionEyebrow: {
-    fontSize: 8,
-    fontWeight: '500',
-    letterSpacing: 1.2,
-    color: '#797B83',
-    marginBottom: 4,
-  },
-  sectionTitle: {
-    fontSize: 19,
-    lineHeight: 25,
-    fontWeight: '600',
-    letterSpacing: -0.5,
-    color: COLORS.text,
-  },
-  sectionSubtitle: {
     fontSize: 11,
-    lineHeight: 17,
-    color: COLORS.secondary,
+  },
+  helpStepCopy: {
+    flex: 1,
+  },
+  helpStepTitle: {
+    fontSize: 13,
+    lineHeight: 20,
+    color: C.text,
+    fontWeight: '500',
+  },
+  helpStepDescription: {
+    color: C.secondary,
+    fontSize: 12,
+    lineHeight: 19,
     marginTop: 3,
   },
 
-  reportRow: {
+  scopeTabs: {
     flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
   },
-  pathColumn: {
-    width: 32,
-    marginRight: 10,
+  scopeTab: {
+    flex: 1,
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+    marginBottom: -1,
+  },
+  scopeTabSelected: {
+    borderBottomColor: C.purple,
+  },
+  scopeTabText: {
+    fontSize: 14,
+    color: C.secondary,
+    fontWeight: '500',
+  },
+  scopeTabTextSelected: {
+    color: C.purple,
+    fontWeight: '600',
+  },
+  scopeDescription: {
+    color: C.secondary,
+    fontSize: 12,
+    lineHeight: 19,
+    marginTop: 14,
+    marginBottom: 12,
+  },
+  statusFilters: {
+    paddingVertical: 2,
+  },
+  filterPill: {
+    minHeight: 44,
+    paddingHorizontal: 13,
+    paddingVertical: 11,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: C.border,
+    marginRight: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterPillSelected: {
+    backgroundColor: C.lavender,
+    borderColor: '#DCD0EC',
+  },
+  filterText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: C.secondary,
+  },
+  filterTextSelected: {
+    color: C.purple,
+  },
+  categoryControlRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    marginTop: 3,
+  },
+  categoryToggle: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  categoryToggleText: {
+    color: C.secondary,
+    fontSize: 12,
+    marginRight: 7,
+  },
+  clearButton: {
+    minHeight: 44,
+    flexDirection: 'row',
     alignItems: 'center',
   },
-  pathLine: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    left: 15,
-    borderLeftWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: '#D5CFDE',
+  clearText: {
+    fontSize: 11,
+    color: C.purple,
+    marginLeft: 4,
   },
-  reportNode: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    borderWidth: 1.5,
-    backgroundColor: COLORS.background,
-    marginTop: 19,
+  categoryOptions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingBottom: 8,
   },
-  reportContent: {
+  categoryOption: {
+    minHeight: 44,
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: C.white,
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 12,
+    marginRight: 7,
+    marginBottom: 7,
+  },
+  categoryOptionSelected: {
+    backgroundColor: C.lavender,
+    borderColor: '#DCD0EC',
+  },
+  categoryOptionText: {
+    fontSize: 12,
+    color: C.secondary,
+  },
+  resultsLabel: {
+    fontSize: 11,
+    color: C.secondary,
+    paddingBottom: 13,
+    paddingTop: 4,
+  },
+
+  reportRow: {
+    paddingVertical: 18,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: C.border,
+  },
+  reportTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 13,
+  },
+  reportCategory: {
     flex: 1,
-    paddingTop: 10,
-    paddingBottom: 14,
+    color: C.secondary,
+    fontSize: 11,
+    fontWeight: '500',
+    marginRight: 10,
   },
-  reportDivider: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: COLORS.border,
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 8,
+    flexShrink: 1,
+  },
+  statusText: {
+    marginLeft: 5,
+    fontSize: 10,
+    fontWeight: '500',
+    flexShrink: 1,
   },
   reportMain: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    minHeight: 80,
   },
   reportCopy: {
     flex: 1,
   },
-  status: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 7,
-  },
-  statusDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    marginRight: 5,
-  },
-  statusText: {
-    fontSize: 10,
-    lineHeight: 15,
-    fontWeight: '500',
-    flexShrink: 1,
-  },
   reportTitle: {
-    fontSize: 16,
-    lineHeight: 23,
+    color: C.text,
+    fontSize: 17,
+    lineHeight: 24,
+    letterSpacing: -0.3,
     fontWeight: '500',
-    letterSpacing: -0.25,
-    color: COLORS.text,
   },
   locationRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    marginTop: 8,
+    marginTop: 9,
   },
   locationText: {
+    color: C.secondary,
     flex: 1,
-    fontSize: 10,
-    lineHeight: 16,
-    color: COLORS.secondary,
-    marginLeft: 4,
-  },
-  reportPhoto: {
-    width: 74,
-    height: 85,
-    borderRadius: 9,
-    marginLeft: 12,
-    marginTop: 3,
-    backgroundColor: '#ECECE6',
-  },
-
-  reportFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 11,
-  },
-  reporter: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingRight: 6,
-  },
-  avatar: {
-    width: 24,
-    height: 24,
-    borderRadius: 9,
-    marginRight: 6,
-    backgroundColor: COLORS.lavender,
-  },
-  avatarPlaceholder: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarLetter: {
-    fontSize: 10,
-    fontWeight: '500',
-    color: COLORS.purple,
-  },
-  reporterCopy: {
-    flex: 1,
-  },
-  reporterName: {
-    fontSize: 10,
-    lineHeight: 15,
-    fontWeight: '500',
-    color: '#575B67',
-  },
-  reporterMeta: {
-    fontSize: 9,
-    lineHeight: 14,
-    color: '#777B83',
-  },
-  upvote: {
-    minWidth: 44,
-    minHeight: 44,
-    paddingHorizontal: 8,
-    borderRadius: 11,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  upvoteActive: {
-    backgroundColor: COLORS.lavender,
-  },
-  upvoteText: {
-    fontSize: 11,
-    color: COLORS.secondary,
+    fontSize: 12,
+    lineHeight: 18,
     marginLeft: 5,
   },
-  upvoteTextActive: {
-    color: COLORS.purple,
+  reportDate: {
+    color: C.secondary,
+    fontSize: 10,
+    lineHeight: 16,
+    marginTop: 8,
   },
-
-  walkEnd: {
-    flexDirection: 'column',
-    paddingTop: 8,
-    paddingLeft: 12,
+  reportPhoto: {
+    width: 78,
+    height: 87,
+    borderRadius: 12,
+    marginLeft: 14,
+    backgroundColor: C.lavender,
   },
-  walkEndTextRow: {
+  reportFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  upvoteButton: {
+    minHeight: 44,
+    paddingHorizontal: 9,
+    borderRadius: 11,
     flexDirection: 'row',
     alignItems: 'center',
-    // marginBottom: 20,
   },
-  footerLogo: {
-    width: 160,
-    height: 160,
-    alignSelf: 'center',
-    opacity: 0.9,
-    // marginTop: 10,
-    // marginBottom: 30,
+  upvoteSelected: {
+    backgroundColor: C.lavender,
   },
-  endDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#BBCABD',
-    marginRight: 22,
+  upvoteText: {
+    color: C.secondary,
+    fontSize: 11,
+    marginLeft: 6,
   },
-  endText: {
-    flex: 1,
-    fontSize: 10,
-    lineHeight: 17,
-    color: '#767E74',
+  purpleText: {
+    color: C.purple,
+  },
+  detailsButton: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingLeft: 12,
+  },
+  detailsText: {
+    color: C.purple,
+    fontSize: 12,
+    fontWeight: '500',
+    marginRight: 6,
   },
 
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
+  errorNotice: {
+    flexDirection: 'row',
     alignItems: 'center',
+    paddingVertical: 10,
+  },
+  errorText: {
+    flex: 1,
+    color: C.amber,
+    fontSize: 12,
+    lineHeight: 18,
+    marginRight: 12,
+  },
+  retryButton: {
+    minHeight: 44,
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+  },
+  retryText: {
+    fontSize: 12,
+    color: C.purple,
+    fontWeight: '600',
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    paddingVertical: 20,
   },
   loadingAnimation: {
-    width: 170,
-    height: 170,
+    width: 110,
+    height: 110,
   },
   loadingText: {
     fontSize: 12,
-    color: COLORS.secondary,
+    color: C.secondary,
   },
   emptyContainer: {
     alignItems: 'center',
-    paddingVertical: 50,
-    paddingHorizontal: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 30,
+  },
+  emptyIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 20,
+    backgroundColor: C.lavender,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
   },
   emptyTitle: {
     fontSize: 18,
+    color: C.text,
     fontWeight: '500',
-    color: COLORS.text,
-    marginTop: 16,
+    textAlign: 'center',
+    letterSpacing: -0.3,
   },
-  emptyText: {
+  emptyDescription: {
+    color: C.secondary,
     fontSize: 13,
-    lineHeight: 20,
-    color: COLORS.secondary,
+    lineHeight: 21,
     textAlign: 'center',
     marginTop: 8,
+    maxWidth: 300,
+  },
+  emptyAction: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+  },
+  emptyActionText: {
+    color: C.purple,
+    fontSize: 13,
+    fontWeight: '500',
+    marginRight: 7,
+  },
+  footer: {
+    alignItems: 'center',
+    paddingTop: 20,
+  },
+  footerText: {
+    fontSize: 11,
+    lineHeight: 18,
+    color: C.secondary,
+    textAlign: 'center',
+  },
+  footerLogo: {
+    width: 64,
+    height: 64,
+    marginTop: 18,
+    opacity: 0.8,
   },
 });
 

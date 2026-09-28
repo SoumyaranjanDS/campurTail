@@ -1,4 +1,5 @@
 import React, { useContext, useEffect, useState, useCallback } from 'react';
+import { API_URL } from '../../config';
 import {
   View,
   Text,
@@ -30,7 +31,7 @@ import axios from 'axios';
 
 import { AuthContext } from '../../context/AuthContext';
 
-const API = 'https://tails.inkedfact.online/api/v1';
+const API = API_URL;
 
 const C = {
   background: '#FAFAF7',

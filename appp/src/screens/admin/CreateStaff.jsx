@@ -1,4 +1,5 @@
 import React, { useContext, useState } from 'react';
+import { API_URL } from '../../config';
 import {
   View, Text, StyleSheet, TextInput, TouchableOpacity,
   StatusBar, ScrollView, ActivityIndicator,
@@ -8,7 +9,7 @@ import { AuthContext } from '../../context/AuthContext';
 import { AlertContext } from '../../context/AlertContext';
 import { ArrowLeft, Check } from 'lucide-react-native';
 
-const API = 'https://tails.inkedfact.online/api/v1/admin';
+const API = `${API_URL}/admin`;
 const DEPARTMENTS = ["Infrastructure", "Academics", "Hostel", "Cleanliness", "Security", "Other"];
 
 const C = {

@@ -1,4 +1,5 @@
 import React, { useContext, useState, useEffect } from 'react';
+import { API_URL as BASE_API_URL } from '../config';
 import {
   View,
   Text,
@@ -34,7 +35,7 @@ import { AuthContext } from '../context/AuthContext';
 import { AlertContext } from '../context/AlertContext';
 import Screen from '../components/Screen';
 
-const API_URL = 'https://tails.inkedfact.online/api/v1/auth';
+const API_URL = `${BASE_API_URL}/auth`;
 
 const C = {
   background: '#FAFAF7',

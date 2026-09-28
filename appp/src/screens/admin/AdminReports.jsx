@@ -1,4 +1,5 @@
 import React, { useContext, useEffect, useState, useCallback } from 'react';
+import { API_URL } from '../../config';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
   StatusBar, RefreshControl, TextInput, ScrollView
@@ -7,7 +8,7 @@ import axios from 'axios';
 import { AuthContext } from '../../context/AuthContext';
 import { Search, MapPin, CheckCircle2, Circle, Clock, ArrowLeft } from 'lucide-react-native';
 
-const API = 'https://tails.inkedfact.online/api/v1/admin';
+const API = `${API_URL}/admin`;
 const STATUSES = ['All', 'Pending', 'In Progress', 'Resolved'];
 
 const C = {

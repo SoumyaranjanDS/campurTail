@@ -1,4 +1,5 @@
 import React, { useContext, useEffect, useState } from 'react';
+import { API_URL } from '../../config';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   StatusBar, ActivityIndicator, Image, Dimensions
@@ -10,7 +11,7 @@ import { BarChart } from 'react-native-chart-kit';
 
 const screenWidth = Dimensions.get('window').width;
 
-const API = 'https://tails.inkedfact.online/api/v1/admin';
+const API = `${API_URL}/admin`;
 
 const C = {
   background: '#FAFAF7',

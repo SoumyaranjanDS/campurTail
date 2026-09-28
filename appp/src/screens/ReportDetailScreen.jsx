@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useContext } from 'react';
+import { API_URL as BASE_API_URL } from '../config';
 import {
   View,
   Text,
@@ -40,7 +41,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AuthContext } from '../context/AuthContext';
 import { AlertContext } from '../context/AlertContext';
 
-const API_URL = 'https://tails.inkedfact.online/api/v1/incidents';
+const API_URL = `${BASE_API_URL}/incidents`;
 
 const C = {
   background: '#FAFAF7',
@@ -151,6 +152,14 @@ const SectionHeading = ({ number, title, subtitle, accessory }) => (
   </View>
 );
 
+const getId = value => {
+  if (!value) return null;
+  if (typeof value === 'object') {
+    return value._id || value.userId || null;
+  }
+  return String(value);
+};
+
 const Avatar = ({ person, small = false }) => {
   const avatarStyle = [styles.avatar, small && styles.avatarSmall];
 
@@ -173,6 +182,7 @@ const ReportDetailScreen = ({ route, navigation }) => {
   const [updates, setUpdates] = useState([]);
   const [comments, setComments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [conversation, setConversation] = useState(null);
 
   const [showStaffAction, setShowStaffAction] = useState(false);
   const [newStatus, setNewStatus] = useState('In Progress');
@@ -197,6 +207,25 @@ const ReportDetailScreen = ({ route, navigation }) => {
       setIncident(response.data.incident);
       setUpdates(response.data.updates);
       setComments(response.data.comments || []);
+
+      // Check if user is authorized for chat
+      const inc = response.data.incident;
+      const currentUserId = getId(userData);
+      const isAuth = userData?.role === 'admin' || 
+                     (inc.reportedBy && String(getId(inc.reportedBy)) === String(currentUserId)) || 
+                     (inc.assignedTo && String(getId(inc.assignedTo)) === String(currentUserId));
+      
+      if (isAuth) {
+        try {
+          const convRes = await axios.get(`${API_URL}/${incidentId}/conversation`, {
+            headers: { Authorization: `Bearer ${userToken}` }
+          });
+          setConversation(convRes.data);
+        } catch (e) {
+          // Normal if not created yet or unauthorized, ignore
+        }
+      }
+
     } catch (error) {
       console.error(error);
       showAlert('Error', 'Could not load incident details.');
@@ -427,6 +456,57 @@ const ReportDetailScreen = ({ route, navigation }) => {
 
         <Text style={styles.description}>{incident.description}</Text>
 
+        {/* Landmark Details */}
+        {(incident.landmarkText || (incident.landmarkImages && incident.landmarkImages.length > 0)) ? (
+          <View style={{
+            marginTop: 24,
+            marginBottom: 24,
+            paddingTop: 18,
+            paddingBottom: 18,
+            paddingHorizontal: 16,
+            backgroundColor: 'rgba(238,231,247,0.35)',
+            borderRadius: 16,
+            borderWidth: 1,
+            borderColor: '#E8E0F0',
+          }}>
+            {/* Header */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
+              <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: C.lavender, alignItems: 'center', justifyContent: 'center', marginRight: 8 }}>
+                <MapPin size={13} color={C.purple} strokeWidth={1.7} />
+              </View>
+              <Text style={{ fontSize: 13, fontWeight: '600', color: C.text, letterSpacing: 0.1 }}>Landmark Details</Text>
+            </View>
+
+            {/* Text */}
+            {incident.landmarkText ? (
+              <Text style={{ fontSize: 13, lineHeight: 21, color: C.secondary, marginBottom: incident.landmarkImages && incident.landmarkImages.length > 0 ? 14 : 0 }}>
+                {incident.landmarkText}
+              </Text>
+            ) : null}
+
+            {/* Images */}
+            {incident.landmarkImages && incident.landmarkImages.length > 0 ? (
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+                {incident.landmarkImages.map((imgUrl, idx) => (
+                  <TouchableOpacity
+                    key={idx}
+                    activeOpacity={0.85}
+                    onPress={() => setFullScreenImage(imgUrl)}
+                    style={{ borderRadius: 12, overflow: 'hidden', elevation: 2, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } }}
+                  >
+                    <Image
+                      source={{ uri: imgUrl }}
+                      style={{ width: 115, height: 115, backgroundColor: C.lavender }}
+                      resizeMode="cover"
+                    />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ) : null}
+          </View>
+        ) : null}
+
+
         <View style={styles.peopleContainer}>
           <View style={[styles.reporterRow, { flex: 1, borderRightWidth: incident.assignedTo ? 1 : 0, borderRightColor: C.border }]}>
             <Avatar person={incident.reportedBy} />
@@ -474,9 +554,53 @@ const ReportDetailScreen = ({ route, navigation }) => {
 
         <View style={styles.sectionDivider} />
 
-        {/* Actual recorded updates */}
+        {/* Private Conversation */}
         <SectionHeading
           number="02"
+          title="Private Chat"
+          subtitle="Direct communication with assigned staff."
+        />
+        <View style={styles.chatSection}>
+          {incident.status === 'Resolved' ? (
+            <Text style={styles.chatPreviewText}>This issue is resolved. Chat is no longer available.</Text>
+          ) : incident.assignedTo ? (
+            <>
+              {userData?.role === 'admin' || 
+               (incident.reportedBy && String(getId(incident.reportedBy)) === String(getId(userData))) || 
+               (incident.assignedTo && String(getId(incident.assignedTo)) === String(getId(userData))) ? (
+                <>
+                  <Text style={styles.chatPreview}>
+                    {conversation && conversation.lastMessagePreview 
+                      ? conversation.lastMessagePreview 
+                      : 'No messages yet.'}
+                  </Text>
+                  <TouchableOpacity 
+                    style={styles.chatButton}
+                    onPress={() => navigation.navigate('IssueChat', { 
+                      incidentId: incident._id, 
+                      assignee: incident.assignedTo,
+                      title: incident.title,
+                      status: incident.status
+                    })}
+                  >
+                    <MessageCircle size={17} color="#FFF" />
+                    <Text style={styles.chatButtonText}>Open Conversation</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <Text style={styles.chatPreviewText}>You do not have access to this private chat.</Text>
+              )}
+            </>
+          ) : (
+            <Text style={styles.chatPreviewText}>Conversation opens when staff is assigned.</Text>
+          )}
+        </View>
+
+        <View style={styles.sectionDivider} />
+
+        {/* Actual recorded updates */}
+        <SectionHeading
+          number="03"
           title="The issue journey"
           subtitle="Small steps toward a better campus."
           accessory={<JourneyIllustration />}
@@ -696,7 +820,7 @@ const ReportDetailScreen = ({ route, navigation }) => {
 
         {/* Open discussion rows */}
         <SectionHeading
-          number="03"
+          number="04"
           title="Around this issue"
           subtitle="Discussion"
           accessory={<Text style={styles.commentCount}>{comments.length}</Text>}
@@ -1086,6 +1210,36 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     borderColor: C.border,
+  },
+  chatSection: {
+    padding: 16,
+    backgroundColor: '#F7F6FA',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  chatPreview: {
+    fontSize: 14,
+    color: '#565B68',
+    marginBottom: 12,
+  },
+  chatPreviewText: {
+    fontSize: 13,
+    color: C.secondary,
+    fontStyle: 'italic',
+  },
+  chatButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: C.purple,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  chatButtonText: {
+    color: '#FFF',
+    fontWeight: '600',
+    marginLeft: 8,
   },
   sectionDivider: {
     height: StyleSheet.hairlineWidth,

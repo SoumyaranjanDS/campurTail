@@ -1,4 +1,5 @@
 import React, { useState, useContext } from 'react';
+import { API_URL as BASE_API_URL } from '../../config';
 import { ContactRound } from 'lucide-react-native';
 import axios from 'axios';
 
@@ -12,7 +13,7 @@ import {
 } from '../../components/AuthUI';
 
 // Keep your existing backend address.
-const API_URL = 'https://tails.inkedfact.online/api/v1/auth';
+const API_URL = `${BASE_API_URL}/auth`;
 
 const LoginScreen = ({ navigation }) => {
   const [registrationNumber, setRegistrationNumber] = useState('');
