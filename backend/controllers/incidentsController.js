@@ -395,9 +395,11 @@ exports.analyzeImage = async (req, res) => {
           content: [
             {
               type: "text",
-              text: `You are an AI assistant for a campus maintenance app. Analyze this image and identify the campus issue.
+              text: `You are an AI assistant for a campus maintenance app. Analyze this image and identify if there is a campus issue.
+              If there is NO clear issue (e.g., a normal room, clean area, normal selfie, or perfectly working items), set "isIssue" to false. Do not hallucinate an issue.
+              If there IS an issue, set "isIssue" to true, and provide title, category, description, and priority.
               Respond with ONLY a raw JSON object (no markdown, no code fences). Example:
-              {"title":"Broken projector","category":"Infrastructure","description":"The projector in classroom is damaged.","priority":"Medium"}
+              {"isIssue": true, "title":"Broken projector","category":"Infrastructure","description":"The projector in classroom is damaged.","priority":"Medium"}
               category must be one of: Infrastructure, Academics, Hostel, Cleanliness, Security, Other
               priority must be one of: Low, Medium, High, Critical`,
             },

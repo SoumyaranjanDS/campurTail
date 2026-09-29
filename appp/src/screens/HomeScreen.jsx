@@ -19,13 +19,14 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import axios from 'axios';
+import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
 import LottieView from 'lottie-react-native';
 import {
   Bell,
   Plus,
   ArrowRight,
   MapPin,
-  ThumbsUp,
+  ArrowUp,
   FileText,
   CheckCircle2,
   Clock,
@@ -247,6 +248,7 @@ const HomeScreen = ({ navigation }) => {
   );
 
   const handleUpvote = async id => {
+    ReactNativeHapticFeedback.trigger("impactMedium", { enableVibrateFallback: true, ignoreAndroidSystemSettings: false });
     if (!currentUserId || pendingUpvotes.current.has(id)) return;
 
     pendingUpvotes.current.add(id);
@@ -411,7 +413,7 @@ const HomeScreen = ({ navigation }) => {
             }. ${upvotes.length} upvotes`}
             accessibilityState={{ selected: hasUpvoted }}
           >
-            <ThumbsUp
+            <ArrowUp
               size={15}
               strokeWidth={1.8}
               color={hasUpvoted ? C.purple : C.secondary}

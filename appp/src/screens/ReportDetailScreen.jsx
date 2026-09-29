@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useContext } from 'react';
+import ImageViewing from 'react-native-image-viewing';
+import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
 import { API_URL as BASE_API_URL } from '../config';
 import {
   View,
@@ -189,7 +191,16 @@ const ReportDetailScreen = ({ route, navigation }) => {
   const [note, setNote] = useState('');
   const [photo, setPhoto] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [fullScreenImage, setFullScreenImage] = useState(null);
+  const [isImageViewerVisible, setIsImageViewerVisible] = useState(false);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+
+  const allImages = incident ? [
+    { uri: incident.photo },
+    ...(incident.landmarkImages || []).map(url => ({ uri: url }))
+  ] : [];
+  
+  const hapticOptions = { enableVibrateFallback: true, ignoreAndroidSystemSettings: false };
+
 
   const [commentText, setCommentText] = useState('');
   const [isPostingComment, setIsPostingComment] = useState(false);
@@ -426,7 +437,7 @@ const ReportDetailScreen = ({ route, navigation }) => {
         {incident.photo ? (
           <View style={styles.photoSection}>
             <View style={styles.photoFrame}>
-              <TouchableOpacity activeOpacity={0.9} onPress={() => setFullScreenImage(incident.photo)}>
+              <TouchableOpacity activeOpacity={0.9} onPress={() => { setCurrentImageIndex(0); setIsImageViewerVisible(true); }}>
                 <Image
                   source={{ uri: incident.photo }}
                   style={styles.mainImage}
@@ -491,7 +502,7 @@ const ReportDetailScreen = ({ route, navigation }) => {
                   <TouchableOpacity
                     key={idx}
                     activeOpacity={0.85}
-                    onPress={() => setFullScreenImage(imgUrl)}
+                    onPress={() => { setCurrentImageIndex(idx + 1); setIsImageViewerVisible(true); }}
                     style={{ borderRadius: 12, overflow: 'hidden', elevation: 2, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } }}
                   >
                     <Image
@@ -902,32 +913,14 @@ const ReportDetailScreen = ({ route, navigation }) => {
         </TouchableOpacity>
       </View>
 
-      <Modal visible={!!fullScreenImage} transparent={true} animationType="fade">
-        <TouchableWithoutFeedback onPress={() => setFullScreenImage(null)}>
-          <View style={styles.modalOverlay}>
-            <TouchableWithoutFeedback>
-              <View style={styles.modalImageContainer}>
-                <ScrollView 
-                  contentContainerStyle={styles.scrollImageContent}
-                  maximumZoomScale={3}
-                  minimumZoomScale={1}
-                  centerContent={true}
-                  showsHorizontalScrollIndicator={false}
-                  showsVerticalScrollIndicator={false}
-                >
-                  <TouchableWithoutFeedback onPress={() => setFullScreenImage(null)}>
-                    <Image
-                      source={{ uri: fullScreenImage }}
-                      style={styles.fullScreenImage}
-                      resizeMode="contain"
-                    />
-                  </TouchableWithoutFeedback>
-                </ScrollView>
-              </View>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
+      <ImageViewing
+        images={allImages}
+        imageIndex={currentImageIndex}
+        visible={isImageViewerVisible}
+        onRequestClose={() => setIsImageViewerVisible(false)}
+        swipeToCloseEnabled={true}
+        doubleTapToZoomEnabled={true}
+      />
 
     </KeyboardAvoidingView>
   );

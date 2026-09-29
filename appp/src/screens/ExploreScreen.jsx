@@ -1,4 +1,5 @@
 import React, { useState, useContext, useEffect } from 'react';
+import ReactNativeHapticFeedback from "react-native-haptic-feedback";
 import { API_URL as BASE_API_URL } from '../config';
 import {
   View,
@@ -256,13 +257,16 @@ const ExploreScreen = ({ navigation }) => {
       setNearbyIssues([]);
       return;
     }
-    
+
     setIsCheckingNearby(true);
     const checkTimer = setTimeout(async () => {
       try {
-        const res = await axios.get(`${API_URL}/nearby?longitude=${gpsLocation.longitude}&latitude=${gpsLocation.latitude}`, {
-          headers: { Authorization: `Bearer ${userToken}` }
-        });
+        const res = await axios.get(
+          `${API_URL}/nearby?longitude=${gpsLocation.longitude}&latitude=${gpsLocation.latitude}`,
+          {
+            headers: { Authorization: `Bearer ${userToken}` },
+          },
+        );
         setNearbyIssues(res.data);
       } catch (err) {
         console.error('Failed to check nearby issues:', err);
@@ -298,11 +302,21 @@ const ExploreScreen = ({ navigation }) => {
       );
 
       const {
+        isIssue,
         title: aiTitle,
         description: aiDesc,
         category: aiCat,
         priority: aiPriority,
       } = response.data;
+
+      if (isIssue === false) {
+        Vibration.vibrate([0, 50, 100, 50]);
+        showAlert(
+          'No Issue Detected',
+          'The AI could not identify any clear issue in this photo. You can still fill out the form manually or take another photo.',
+        );
+        return;
+      }
 
       if (aiTitle) setTitle(aiTitle);
       if (aiDesc) setDescription(aiDesc);
@@ -326,7 +340,7 @@ const ExploreScreen = ({ navigation }) => {
     }
   };
 
-  const pickLandmarkImage = async (source) => {
+  const pickLandmarkImage = async source => {
     if (landmarkImages.length >= 2) {
       showAlert('Limit Reached', 'You can only add up to 2 landmark images.');
       return;
@@ -354,7 +368,12 @@ const ExploreScreen = ({ navigation }) => {
       }
     }
 
-    const options = { mediaType: 'photo', quality: 0.8 };
+    const options = { 
+      mediaType: 'photo', 
+      quality: 0.6,
+      maxWidth: 800,
+      maxHeight: 800
+    };
     const picker = source === 'camera' ? launchCamera : launchImageLibrary;
     const result = await picker(options);
     if (result.assets && result.assets.length > 0) {
@@ -366,7 +385,7 @@ const ExploreScreen = ({ navigation }) => {
     setLandmarkImages(prev => prev.filter((_, i) => i !== index));
   };
 
-    const handlePickImage = async source => {
+  const handlePickImage = async source => {
     if (source === 'camera' && Platform.OS === 'android') {
       try {
         const granted = await PermissionsAndroid.request(
@@ -439,19 +458,9 @@ const ExploreScreen = ({ navigation }) => {
     return true;
   };
 
-  const handleGetLocation = async () => {
-    setIsLocating(true);
-
+  const fetchBackgroundLocation = async () => {
     const hasPermission = await requestLocationPermission();
-
-    if (!hasPermission) {
-      showAlert(
-        'Permission Denied',
-        'Location permission is required to get GPS coordinates.',
-      );
-      setIsLocating(false);
-      return;
-    }
+    if (!hasPermission) return;
 
     Geolocation.getCurrentPosition(
       position => {
@@ -459,29 +468,24 @@ const ExploreScreen = ({ navigation }) => {
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
         });
-        
-        // Auto-fill the location text input if it's empty
-        setLocation(prev => 
-          prev.trim() === '' 
-            ? `${position.coords.latitude.toFixed(6)}, ${position.coords.longitude.toFixed(6)}`
-            : prev
-        );
-        
-        setIsLocating(false);
       },
-      error => {
-        showAlert(
-          'Error',
-          'Could not fetch location. Please try again or type it manually.',
-        );
-        setIsLocating(false);
-      },
+      error => console.warn('Background GPS error:', error),
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 },
     );
   };
 
+  useEffect(() => {
+    fetchBackgroundLocation();
+  }, []);
+
   const handleSubmit = async () => {
-    if (!title || !location || !photo) {
+    ReactNativeHapticFeedback.trigger("notificationSuccess", { enableVibrateFallback: true, ignoreAndroidSystemSettings: false });
+    const trimmedTitle = title.trim();
+    const trimmedLocation = location.trim();
+    const trimmedDescription = description.trim();
+    const trimmedLandmark = landmarkText.trim();
+
+    if (!trimmedTitle || !trimmedLocation || !photo) {
       showAlert(
         'Missing Fields',
         'Please fill out all required fields and add a photo.',
@@ -489,17 +493,42 @@ const ExploreScreen = ({ navigation }) => {
       return;
     }
 
+    if (trimmedTitle.length < 5) {
+      showAlert('Validation Error', 'Title must be at least 5 characters long.');
+      return;
+    }
+    
+    if (trimmedTitle.length > 60) {
+      showAlert('Validation Error', 'Title must not exceed 60 characters.');
+      return;
+    }
+
+    if (trimmedLocation.length < 3) {
+      showAlert('Validation Error', 'Location must be at least 3 characters long.');
+      return;
+    }
+
+    if (trimmedDescription.length > 500) {
+      showAlert('Validation Error', 'Description must not exceed 500 characters.');
+      return;
+    }
+
+    if (trimmedLandmark.length > 200) {
+      showAlert('Validation Error', 'Landmark details must not exceed 200 characters.');
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
       const formData = new FormData();
-      formData.append('title', title);
-      formData.append('description', description);
+      formData.append('title', trimmedTitle);
+      formData.append('description', trimmedDescription);
       formData.append('category', category);
-      formData.append('location', location);
+      formData.append('location', trimmedLocation);
       formData.append('priority', priority);
 
-      formData.append('landmarkText', landmarkText);
+      formData.append('landmarkText', trimmedLandmark);
       landmarkImages.forEach((img, index) => {
         formData.append('landmarkImages', {
           uri: img.uri,
@@ -507,7 +536,6 @@ const ExploreScreen = ({ navigation }) => {
           name: img.fileName || `landmark_${index}.jpg`,
         });
       });
-
 
       if (gpsLocation) {
         formData.append('latitude', gpsLocation.latitude.toString());
@@ -672,10 +700,7 @@ const ExploreScreen = ({ navigation }) => {
               </Text>
             </View>
 
-            
-
             <View style={styles.divider} />
-
 
             {/* 02 — Describe */}
             <StepHeading
@@ -711,7 +736,10 @@ const ExploreScreen = ({ navigation }) => {
                       styles.categoryOption,
                       selected && styles.categoryOptionSelected,
                     ]}
-                    onPress={() => setCategory(cat)}
+                    onPress={() => {
+                      ReactNativeHapticFeedback.trigger("selection", { enableVibrateFallback: true, ignoreAndroidSystemSettings: false });
+                      setCategory(cat);
+                    }}
                     activeOpacity={0.75}
                     accessibilityRole="button"
                     accessibilityState={{ selected }}
@@ -821,66 +849,41 @@ const ExploreScreen = ({ navigation }) => {
               />
             </View>
 
-            <TouchableOpacity
-              style={styles.gpsButton}
-              onPress={handleGetLocation}
-              disabled={isLocating}
-              activeOpacity={0.75}
-              accessibilityRole="button"
-              accessibilityLabel="Capture current GPS coordinates"
-            >
-              {isLocating ? (
-                <ActivityIndicator color={C.purple} size="small" />
-              ) : (
-                <MapPin size={17} color={C.purple} />
-              )}
 
-              <Text style={styles.gpsButtonText}>
-                {isLocating
-                  ? 'Finding your location…'
-                  : gpsLocation
-                  ? 'Refresh GPS coordinates'
-                  : 'Add current GPS coordinates'}
-              </Text>
-
-              <Text style={styles.gpsOptional}>Optional</Text>
-            </TouchableOpacity>
-
-            {gpsLocation ? (
-              <View style={styles.gpsResult}>
-                <CheckCircle size={15} color={C.green} />
-                <Text style={styles.gpsResultText}>
-                  GPS captured: {gpsLocation.latitude.toFixed(4)},{' '}
-                  {gpsLocation.longitude.toFixed(4)}
-                </Text>
-              </View>
-            ) : null}
 
             {isCheckingNearby ? (
               <ActivityIndicator color={C.purple} style={{ marginTop: 10 }} />
             ) : nearbyIssues.length > 0 ? (
               <View style={styles.nearbySection}>
-                <Text style={styles.nearbyHeading}>An active issue is nearby</Text>
+                <Text style={styles.nearbyHeading}>
+                  An active issue is nearby
+                </Text>
                 <Text style={styles.nearbySubheading}>
                   {nearbyIssues[0].title} · {nearbyIssues[0].priority} priority
                 </Text>
                 <Text style={styles.nearbyInfo}>
-                  Updated {new Date(nearbyIssues[0].lastActivityAt || nearbyIssues[0].createdAt).toLocaleDateString()}
+                  Updated{' '}
+                  {new Date(
+                    nearbyIssues[0].lastActivityAt || nearbyIssues[0].createdAt,
+                  ).toLocaleDateString()}
                 </Text>
                 <TouchableOpacity
                   style={styles.nearbyButton}
-                  onPress={() => navigation.navigate('ReportDetail', { incidentId: nearbyIssues[0]._id })}
+                  onPress={() =>
+                    navigation.navigate('ReportDetail', {
+                      incidentId: nearbyIssues[0]._id,
+                    })
+                  }
                 >
                   <Text style={styles.nearbyButtonText}>View issue</Text>
                 </TouchableOpacity>
-                <Text style={styles.nearbyOr}>or continue with your report.</Text>
+                <Text style={styles.nearbyOr}>
+                  or continue with your report.
+                </Text>
               </View>
             ) : null}
 
-            <Text style={styles.locationHelp}>
-              GPS adds coordinates. Please still enter the building or room
-              above.
-            </Text>
+
 
             {/* ── Landmark Details ── */}
             <View style={{ marginTop: 22 }}>
@@ -889,7 +892,11 @@ const ExploreScreen = ({ navigation }) => {
                 <Text style={styles.optionalLabel}> (Optional)</Text>
               </Text>
               <TextInput
-                style={[styles.input, styles.textArea, { minHeight: 70, marginTop: 6 }]}
+                style={[
+                  styles.input,
+                  styles.textArea,
+                  { minHeight: 70, marginTop: 6 },
+                ]}
                 placeholder="E.g. Near the main gate, opposite the canteen…"
                 placeholderTextColor="#8B8794"
                 value={landmarkText}
@@ -915,14 +922,28 @@ const ExploreScreen = ({ navigation }) => {
                     <TouchableOpacity
                       onPress={() => removeLandmarkImage(idx)}
                       style={{
-                        position: 'absolute', top: -6, right: -6,
-                        backgroundColor: '#A05C69', borderRadius: 12,
-                        width: 24, height: 24,
-                        alignItems: 'center', justifyContent: 'center', zIndex: 10,
+                        position: 'absolute',
+                        top: -6,
+                        right: -6,
+                        backgroundColor: '#A05C69',
+                        borderRadius: 12,
+                        width: 24,
+                        height: 24,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        zIndex: 10,
                       }}
                       activeOpacity={0.8}
                     >
-                      <Text style={{ color: 'white', fontSize: 11, fontWeight: 'bold' }}>✕</Text>
+                      <Text
+                        style={{
+                          color: 'white',
+                          fontSize: 11,
+                          fontWeight: 'bold',
+                        }}
+                      >
+                        ✕
+                      </Text>
                     </TouchableOpacity>
                   </View>
                 ))}
@@ -932,28 +953,53 @@ const ExploreScreen = ({ navigation }) => {
                       onPress={() => pickLandmarkImage('camera')}
                       activeOpacity={0.7}
                       style={{
-                        width: 90, height: 42, borderRadius: 10,
+                        width: 90,
+                        height: 42,
+                        borderRadius: 10,
                         backgroundColor: '#6456B8',
-                        alignItems: 'center', justifyContent: 'center',
-                        flexDirection: 'row', gap: 6,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexDirection: 'row',
+                        gap: 6,
                       }}
                     >
                       <Camera size={15} color="#fff" />
-                      <Text style={{ color: '#fff', fontSize: 10, fontWeight: '600' }}>Camera</Text>
+                      <Text
+                        style={{
+                          color: '#fff',
+                          fontSize: 10,
+                          fontWeight: '600',
+                        }}
+                      >
+                        Camera
+                      </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       onPress={() => pickLandmarkImage('gallery')}
                       activeOpacity={0.7}
                       style={{
-                        width: 90, height: 42, borderRadius: 10,
+                        width: 90,
+                        height: 42,
+                        borderRadius: 10,
                         backgroundColor: '#E7F0E5',
-                        alignItems: 'center', justifyContent: 'center',
-                        flexDirection: 'row', gap: 6,
-                        borderWidth: 1.5, borderColor: '#507B60',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexDirection: 'row',
+                        gap: 6,
+                        borderWidth: 1.5,
+                        borderColor: '#507B60',
                       }}
                     >
                       <ImageIcon size={15} color="#507B60" />
-                      <Text style={{ color: '#507B60', fontSize: 10, fontWeight: '600' }}>Gallery</Text>
+                      <Text
+                        style={{
+                          color: '#507B60',
+                          fontSize: 10,
+                          fontWeight: '600',
+                        }}
+                      >
+                        Gallery
+                      </Text>
                     </TouchableOpacity>
                   </View>
                 )}
@@ -1511,7 +1557,7 @@ const styles = StyleSheet.create({
     color: '#717583',
     marginTop: 10,
     fontStyle: 'italic',
-  }
+  },
 });
 
 export default ExploreScreen;
